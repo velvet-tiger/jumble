@@ -1,6 +1,16 @@
-# Authoring Guide for `.jumble/project.toml`
+# Authoring Guide for Jumble Context Files
 
-This guide explains how to create a `.jumble/project.toml` file for a project. It's designed for both humans and AI assistants to follow.
+This guide explains how to create context files for Jumble. It's designed for both humans and AI assistants to follow.
+
+## File Overview
+
+| File | Location | Purpose |
+|------|----------|----------|
+| `project.toml` | `.jumble/project.toml` | Project metadata, commands, concepts (required) |
+| `workspace.toml` | `.jumble/workspace.toml` (at root) | Workspace info, cross-project conventions |
+| `conventions.toml` | `.jumble/conventions.toml` | Project-specific conventions and gotchas |
+| `docs.toml` | `.jumble/docs.toml` | Documentation index with summaries |
+| `prompts/*.md` | `.jumble/prompts/` | Task-specific prompts for common operations |
 
 ## Quick Start
 
@@ -336,6 +346,156 @@ summary = "Axum router with dynamic backend routing based on config"
 files = ["src/config/mod.rs", "src/config/loader.rs"]
 summary = "TOML-based config with hot reload support"
 ```
+
+---
+
+## conventions.toml
+
+Project-specific coding conventions and gotchas. Use this to capture patterns and pitfalls specific to this project.
+
+```toml
+[conventions]
+envelope_pattern = """
+All data flows through RequestEnvelope/ResponseEnvelope. Never access 
+raw request data directly in middleware."""
+
+service_pattern = """
+Services are registered in ServiceRegistry. Use dependency injection 
+via the registry - never instantiate services directly."""
+
+[gotchas]
+middleware_order = """
+Middleware executes in the order listed in config. Put auth BEFORE 
+transforms. Getting this wrong causes subtle security bugs."""
+
+async_in_transforms = """
+Transforms run synchronously. Do async operations in middleware BEFORE 
+the transform stage."""
+```
+
+### Guidelines
+
+- **Conventions**: Architectural patterns and standards to follow
+- **Gotchas**: Common mistakes and non-obvious behaviors
+- Keep each entry focused on one thing
+- Use multi-line strings for longer explanations
+- 3-7 items per section is usually sufficient
+
+---
+
+## docs.toml
+
+Index your project's documentation so an LLM can find the right doc without reading them all.
+
+```toml
+[docs.getting-started]
+path = "docs/getting-started.md"
+summary = "Quick start guide, installation, minimal configuration"
+
+[docs.configuration]
+path = "docs/configuration.md"
+summary = "Full config reference: listeners, backends, middleware, transforms"
+
+[docs.api]
+path = "docs/api-reference.md"
+summary = "REST endpoints, request/response formats, authentication"
+
+[docs.architecture]
+path = "docs/architecture.md"
+summary = "High-level architecture, component diagram, data flow"
+```
+
+### Guidelines
+
+- Use short topic names as keys (lowercase, hyphens)
+- Summaries should help an LLM decide if this doc answers their question
+- Include keywords likely to appear in queries
+- Don't index auto-generated docs (API docs from code, etc.)
+
+---
+
+## prompts/*.md
+
+Task-specific prompts provide focused context for common operations. Each prompt is a markdown file in `.jumble/prompts/`.
+
+### Example: `.jumble/prompts/add-endpoint.md`
+
+```markdown
+# Adding a New Endpoint
+
+## Steps
+1. Add route in `src/routes/mod.rs`
+2. Create handler in `src/handlers/`
+3. Add tests in `tests/api/`
+
+## Conventions
+- Use `web::Json<T>` for request bodies
+- Return `ApiResponse<T>` wrapper
+- Add OpenAPI annotations
+
+## Example
+[Include a minimal working example]
+
+## Related Files
+- `src/routes/mod.rs` - Route registration
+- `src/handlers/users.rs` - Example handler
+```
+
+### Common Prompts to Create
+
+- `add-endpoint.md` - Adding API endpoints
+- `add-migration.md` - Database migrations
+- `add-test.md` - Writing tests
+- `debug-*.md` - Debugging specific areas
+- `configure-*.md` - Configuration guides
+
+### Guidelines
+
+- Focus on one task per prompt
+- Include concrete steps, not just concepts
+- Reference actual files in the project
+- Keep under 500 lines (remember: the goal is focused context)
+
+---
+
+## workspace.toml
+
+Workspace-level configuration at the root of a monorepo. Defines conventions that apply across all projects.
+
+```toml
+[workspace]
+name = "My Platform"
+description = "Monorepo for platform services and libraries"
+
+[conventions]
+error_handling = """
+Use anyhow for application code, thiserror for library code. 
+Never panic in library code - always return Result."""
+
+async_runtime = """
+Tokio for all async code. Use tokio::main for binaries. 
+Avoid mixing runtimes or blocking in async contexts."""
+
+testing = """
+Unit tests in same file (mod tests). Integration tests in tests/. 
+Use #[cfg(test)] for test-only dependencies."""
+
+[gotchas]
+workspace_deps = """
+Shared deps go in root Cargo.toml [workspace.dependencies]. 
+Reference with dep.workspace = true for version consistency."""
+
+feature_flags = """
+Features enabled by one project affect all dependents. 
+Document flags clearly and prefer additive features."""
+```
+
+### Guidelines
+
+- Focus on patterns that span multiple projects
+- Don't duplicate project-specific conventions
+- Reference workspace-wide tooling and standards
+- Keep it high-level; projects have their own conventions.toml
 
 ---
 
