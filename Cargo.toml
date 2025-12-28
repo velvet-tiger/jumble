@@ -1,6 +1,6 @@
 [package]
 name = "jumble"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "An MCP server that provides queryable, on-demand project context to LLMs"
 license = "MIT"
