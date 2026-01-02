@@ -10,9 +10,9 @@ use crate::config::{
     ProjectConfig,
     ProjectConventions,
     ProjectDocs,
-    ProjectPrompts,
-    PromptFrontmatter,
-    PromptInfo,
+    ProjectSkills,
+    SkillFrontmatter,
+    SkillInfo,
     WorkspaceConfig,
 };
 use crate::protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
@@ -70,14 +70,14 @@ impl Server {
                         .unwrap_or(path)
                         .to_path_buf();
 
-                    // Discover prompts, conventions, and docs
-                    let prompts = self.discover_prompts(path.parent().unwrap());
+                    // Discover skills, conventions, and docs
+                    let skills = self.discover_skills(path.parent().unwrap());
                     let conventions = self.load_conventions(path.parent().unwrap());
                     let docs = self.load_docs(path.parent().unwrap());
 
                     projects.insert(
                         config.project.name.clone(),
-                        (project_dir, config, prompts, conventions, docs),
+                        (project_dir, config, skills, conventions, docs),
                     );
                 }
             }
@@ -85,26 +85,27 @@ impl Server {
         Ok(projects)
     }
 
-    fn discover_prompts(&self, jumble_dir: &Path) -> ProjectPrompts {
-        let mut prompts = ProjectPrompts::default();
-        let prompts_dir = jumble_dir.join("prompts");
+    fn discover_skills(&self, jumble_dir: &Path) -> ProjectSkills {
+        let mut skills = ProjectSkills::default();
+        let skills_dir = jumble_dir.join("skills");
 
-        // Traditional .jumble/prompts/*.md files
-        if prompts_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&prompts_dir) {
+        // Traditional .jumble/skills/*.md files
+        if skills_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&skills_dir) {
                 for entry in entries.filter_map(|e| e.ok()) {
                     let path = entry.path();
                     if path.extension().map(|e| e == "md").unwrap_or(false) {
                         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                             let (frontmatter, preview) = match std::fs::read_to_string(&path) {
-                                Ok(content) => extract_prompt_frontmatter_and_preview(&content),
+                                Ok(content) => extract_skill_frontmatter_and_preview(&content),
                                 Err(_) => (None, String::new()),
                             };
 
-                            prompts.prompts.insert(
+                            skills.skills.insert(
                                 stem.to_string(),
-                                PromptInfo {
+                                SkillInfo {
                                     path: path.clone(),
+                                    skill_dir: None, // Flat skills have no companion directory
                                     frontmatter,
                                     preview,
                                 },
@@ -119,7 +120,7 @@ impl Server {
         if let Some(project_root) = jumble_dir.parent() {
             let claude_skills_dir = project_root.join(".claude/skills");
             if claude_skills_dir.is_dir() {
-                discover_claude_skills_in_dir(&claude_skills_dir, &mut prompts);
+                discover_structured_skills_in_dir(&claude_skills_dir, &mut skills);
             }
         }
 
@@ -127,11 +128,27 @@ impl Server {
         if let Ok(home) = std::env::var("HOME") {
             let personal_skills_dir = Path::new(&home).join(".claude/skills");
             if personal_skills_dir.is_dir() {
-                discover_claude_skills_in_dir(&personal_skills_dir, &mut prompts);
+                discover_structured_skills_in_dir(&personal_skills_dir, &mut skills);
             }
         }
 
-        prompts
+        // Project-local Codex skills: <project_root>/.codex/skills/**/SKILL.md
+        if let Some(project_root) = jumble_dir.parent() {
+            let codex_skills_dir = project_root.join(".codex/skills");
+            if codex_skills_dir.is_dir() {
+                discover_structured_skills_in_dir(&codex_skills_dir, &mut skills);
+            }
+        }
+
+        // Personal/global Codex skills: $HOME/.codex/skills/**/SKILL.md
+        if let Ok(home) = std::env::var("HOME") {
+            let personal_codex_dir = Path::new(&home).join(".codex/skills");
+            if personal_codex_dir.is_dir() {
+                discover_structured_skills_in_dir(&personal_codex_dir, &mut skills);
+            }
+        }
+
+        skills
     }
 
     fn load_conventions(&self, jumble_dir: &Path) -> ProjectConventions {
@@ -228,8 +245,8 @@ impl Server {
             "get_commands" => tools::get_commands(&self.projects, &arguments),
             "get_architecture" => tools::get_architecture(&self.projects, &arguments),
             "get_related_files" => tools::get_related_files(&self.projects, &arguments),
-            "list_prompts" => tools::list_prompts(&self.projects, &arguments),
-            "get_prompt" => tools::get_prompt(&self.projects, &arguments),
+            "list_skills" => tools::list_skills(&self.projects, &arguments),
+            "get_skill" => tools::get_skill(&self.projects, &arguments),
             "get_conventions" => tools::get_conventions(&self.projects, &arguments),
             "get_docs" => tools::get_docs(&self.projects, &arguments),
             "get_workspace_overview" => {
@@ -260,8 +277,8 @@ impl Server {
     }
 }
 
-/// Discover Claude-style SKILL.md files under a skills root and add them as prompts.
-fn discover_claude_skills_in_dir(root: &Path, prompts: &mut ProjectPrompts) {
+/// Discover structured skills (Claude/Codex-style) with SKILL.md files and companion resources.
+fn discover_structured_skills_in_dir(root: &Path, skills: &mut ProjectSkills) {
     for entry in WalkDir::new(root)
         .follow_links(true)
         .into_iter()
@@ -272,7 +289,7 @@ fn discover_claude_skills_in_dir(root: &Path, prompts: &mut ProjectPrompts) {
             continue;
         }
 
-        // Claude skills conventionally use `SKILL.md` as the filename.
+        // Structured skills (Claude/Codex) conventionally use `SKILL.md` as the filename.
         let is_skill = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -283,11 +300,11 @@ fn discover_claude_skills_in_dir(root: &Path, prompts: &mut ProjectPrompts) {
         }
 
         let (frontmatter, preview) = match std::fs::read_to_string(path) {
-            Ok(content) => extract_prompt_frontmatter_and_preview(&content),
+            Ok(content) => extract_skill_frontmatter_and_preview(&content),
             Err(_) => (None, String::new()),
         };
 
-        // Determine the prompt key. Prefer the frontmatter `name` field when present,
+        // Determine the skill key. Prefer the frontmatter `name` field when present,
         // otherwise fall back to the containing directory name.
         let mut key = frontmatter
             .as_ref()
@@ -303,15 +320,19 @@ fn discover_claude_skills_in_dir(root: &Path, prompts: &mut ProjectPrompts) {
                 .to_string();
         }
 
-        if key.is_empty() || prompts.prompts.contains_key(&key) {
-            // Skip empty keys and avoid overwriting existing prompts from .jumble/prompts.
+        if key.is_empty() || skills.skills.contains_key(&key) {
+            // Skip empty keys and avoid overwriting existing skills from .jumble/skills.
             continue;
         }
 
-        prompts.prompts.insert(
+        // Store the skill directory (parent of SKILL.md) for companion file access
+        let skill_directory = path.parent().map(|p| p.to_path_buf());
+
+        skills.skills.insert(
             key,
-            PromptInfo {
+            SkillInfo {
                 path: path.to_path_buf(),
+                skill_dir: skill_directory,
                 frontmatter,
                 preview,
             },
@@ -319,15 +340,15 @@ fn discover_claude_skills_in_dir(root: &Path, prompts: &mut ProjectPrompts) {
     }
 }
 
-/// Extract optional YAML frontmatter and a preview snippet from a prompt file.
+/// Extract optional YAML frontmatter and a preview snippet from a skill file.
 ///
 /// Frontmatter is only recognized when the file starts with a line containing only `---`.
 /// Everything between the first and second such markers is treated as YAML.
 /// The preview is taken from the body that follows the frontmatter (or from the
 /// top of the file when no frontmatter is present).
-fn extract_prompt_frontmatter_and_preview(
+fn extract_skill_frontmatter_and_preview(
     content: &str,
-) -> (Option<PromptFrontmatter>, String) {
+) -> (Option<SkillFrontmatter>, String) {
     const PREVIEW_MAX_LINES: usize = 16;
 
     // Helper to build a preview from a body slice.
@@ -348,7 +369,7 @@ fn extract_prompt_frontmatter_and_preview(
             let body_start = end_idx + "\n---\n".len();
             let body = &rest[body_start..];
 
-            let frontmatter = serde_yaml::from_str::<PromptFrontmatter>(frontmatter_str).ok();
+            let frontmatter = serde_yaml::from_str::<SkillFrontmatter>(frontmatter_str).ok();
             let preview = build_preview(body);
             return (frontmatter, preview);
         }
@@ -366,7 +387,7 @@ mod tests {
     fn test_extract_frontmatter_and_preview_with_valid_frontmatter() {
         let content = "---\nname: bootstrap\ndescription: Test description\ntags: [a, b]\n---\n# Title\nBody line 1\nBody line 2\n";
 
-        let (frontmatter, preview) = extract_prompt_frontmatter_and_preview(content);
+        let (frontmatter, preview) = extract_skill_frontmatter_and_preview(content);
 
         let fm = frontmatter.expect("expected some frontmatter");
         assert_eq!(fm.name.as_deref(), Some("bootstrap"));
@@ -382,7 +403,7 @@ mod tests {
     fn test_extract_frontmatter_and_preview_without_frontmatter() {
         let content = "# Title\nLine 1\nLine 2\n";
 
-        let (frontmatter, preview) = extract_prompt_frontmatter_and_preview(content);
+        let (frontmatter, preview) = extract_skill_frontmatter_and_preview(content);
 
         assert!(frontmatter.is_none());
         // Preview should include the top of the file when no frontmatter exists.
@@ -395,7 +416,7 @@ mod tests {
         // Starts with `---` but has no closing marker; this should fall back to no frontmatter.
         let content = "---\nname: broken\n# Title\nLine 1\n";
 
-        let (frontmatter, preview) = extract_prompt_frontmatter_and_preview(content);
+        let (frontmatter, preview) = extract_skill_frontmatter_and_preview(content);
 
         assert!(frontmatter.is_none());
         // In this failure mode we currently treat the whole file as body for the preview.
@@ -415,14 +436,14 @@ mod tests {
         let content = "---\nname: explaining-code\ndescription: Explains code with diagrams\n---\nBody";
         std::fs::write(&skill_path, content).unwrap();
 
-        let mut prompts = ProjectPrompts::default();
-        discover_claude_skills_in_dir(&tmp_root, &mut prompts);
+        let mut skills = ProjectSkills::default();
+        discover_structured_skills_in_dir(&tmp_root, &mut skills);
 
         // Clean up best-effort; ignore failures.
         let _ = std::fs::remove_dir_all(&tmp_root);
 
-        let info = prompts
-            .prompts
+        let info = skills
+            .skills
             .get("explaining-code")
             .expect("expected skill discovered with name from frontmatter");
         assert_eq!(info.path, skill_path);
@@ -446,13 +467,13 @@ mod tests {
         let content = "---\ndescription: Diagramming helper\n---\nBody";
         std::fs::write(&skill_path, content).unwrap();
 
-        let mut prompts = ProjectPrompts::default();
-        discover_claude_skills_in_dir(&tmp_root, &mut prompts);
+        let mut skills = ProjectSkills::default();
+        discover_structured_skills_in_dir(&tmp_root, &mut skills);
 
         let _ = std::fs::remove_dir_all(&tmp_root);
 
-        let info = prompts
-            .prompts
+        let info = skills
+            .skills
             .get("diagramming")
             .expect("expected skill discovered with key from directory name");
         assert_eq!(info.path, skill_path);

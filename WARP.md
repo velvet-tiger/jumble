@@ -58,7 +58,10 @@ Key snippets from `README.md` for wiring this binary into tools:
   - `related_projects: RelatedProjects` – `upstream`/`downstream` relationships within a workspace.
   - `api: Option<ApiInfo>` – optional API surface description (OpenAPI spec, base URL, key endpoints).
   - `concepts: HashMap<String, Concept>` – architectural concepts mapped to file lists and summaries.
-- `ProjectPrompts` – map of prompt topic → markdown file path, discovered from `.jumble/prompts/*.md`.
+- `ProjectSkills` – map of skill topic → skill metadata, discovered from multiple sources:
+  - `.jumble/skills/*.md` (flat project skills)
+  - `.claude/skills/**/SKILL.md` (Claude structured skills)
+  - `.codex/skills/**/SKILL.md` (Codex structured skills)
 - `ProjectConventions` – per-project `conventions` and `gotchas`, loaded from `.jumble/conventions.toml`.
 - `ProjectDocs` / `DocEntry` – index of documentation topics to paths and summaries from `.jumble/docs.toml`.
 - `WorkspaceConfig` / `WorkspaceInfo` – workspace-level name/description plus shared `conventions` and `gotchas`, loaded from `.jumble/workspace.toml` at the workspace root.
@@ -91,7 +94,7 @@ Helpers `JsonRpcResponse::success` and `JsonRpcResponse::error` construct the tw
     - Builds a `ProjectData` tuple containing:
       - The project root directory.
       - The parsed `ProjectConfig`.
-      - `ProjectPrompts` discovered from `.jumble/prompts/*.md`.
+      - `ProjectSkills` discovered from `.jumble/skills/*.md`, `.claude/skills/**/SKILL.md`, and `.codex/skills/**/SKILL.md`.
       - `ProjectConventions` loaded from `.jumble/conventions.toml` (or defaults).
       - `ProjectDocs` loaded from `.jumble/docs.toml` (or defaults).
 - `handle_request` is the main dispatcher for JSON-RPC methods:
@@ -108,7 +111,7 @@ Errors at this layer are expressed as `JsonRpcError` and packaged into `JsonRpcR
 `tools.rs` holds both the **tool registry** (schema descriptions) and the implementations that operate over the loaded workspace/project data.
 
 - `ProjectData` is a type alias shared with `server.rs`:
-  - `(PathBuf, ProjectConfig, ProjectPrompts, ProjectConventions, ProjectDocs)`.
+  - `(PathBuf, ProjectConfig, ProjectSkills, ProjectConventions, ProjectDocs)`.
 - `tools_list()` returns a JSON schema describing all MCP tools exposed by this server (names, descriptions, and input JSON Schemas). This is what MCP clients call via `tools/list`.
 - Each tool implementation takes `&HashMap<String, ProjectData>` (and optionally workspace data) plus `serde_json::Value` arguments and returns a `Result<String, String>` where the `String` is markdown meant to be shown to the user.
 
@@ -119,7 +122,7 @@ Key tools and what they do:
 - `get_commands` – returns formatted commands for a project, optionally filtered by `command_type` such as `build` or `test`.
 - `get_architecture` – given a `project` and `concept`, locates the corresponding `Concept` in `.jumble/project.toml` and uses `format_concept` to show its description and file list. It supports exact, case-insensitive, and partial name matching.
 - `get_related_files` – fuzzy search over concept names and summaries to find concepts related to a query, then aggregates their file lists.
-- `list_prompts` / `get_prompt` – introspect `.jumble/prompts/*.md` for a project and either list available prompt topics or return the full contents of a specific prompt file.
+- `list_skills` / `get_skill` – introspect skills from `.jumble/skills/*.md`, `.claude/skills/**/SKILL.md`, and `.codex/skills/**/SKILL.md`. Returns skill content and automatically lists companion files (scripts/, references/, docs/, assets/, examples/) for structured skills.
 - `get_conventions` – surface per-project `conventions` and `gotchas` from `.jumble/conventions.toml`, with optional filtering by category.
 - `get_docs` – expose `.jumble/docs.toml` either as an index of docs + summaries or as a detailed view of a single topic including its resolved path.
 - `get_workspace_overview` – build a workspace-level summary: root path, all projects (name, language, description), and a simple textual dependency graph based on `related_projects`.
@@ -172,7 +175,7 @@ When editing or extending `jumble`, keep `.jumble/project.toml` and `.jumble/con
 
 Two files at the repo root describe how `jumble` is meant to be used to model other projects:
 
-- `AUTHORING.md` – detailed guide for creating `.jumble` context files (`project.toml`, `workspace.toml`, `conventions.toml`, `docs.toml`, and prompts). It defines language-specific heuristics for discovering project names, descriptions, commands, entry points, dependencies, and concepts.
+- `AUTHORING.md` – detailed guide for creating `.jumble` context files (`project.toml`, `workspace.toml`, `conventions.toml`, `docs.toml`, and skills). It defines language-specific heuristics for discovering project names, descriptions, commands, entry points, dependencies, and concepts.
 - `schema.json` – JSON Schema for validating `.jumble/*.toml` files (typically via tools like `taplo`).
 
 When implementing new features or fixing bugs, refer to `AUTHORING.md` and the unit tests in `config.rs`/`tools.rs` to understand the intended shape and semantics of context files across different languages and ecosystems.

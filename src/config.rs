@@ -69,7 +69,7 @@ pub struct Concept {
     pub summary: String,
 }
 
-/// Optional YAML frontmatter for a prompt file.
+/// Optional YAML frontmatter for a skill file.
 ///
 /// This mirrors the common `SKILL.md` / frontmatter pattern used by other tools:
 ///
@@ -79,7 +79,7 @@ pub struct Concept {
 /// tags: [explain, diagram, analogy]
 /// ---
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub struct PromptFrontmatter {
+pub struct SkillFrontmatter {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
@@ -88,22 +88,26 @@ pub struct PromptFrontmatter {
     pub tags: Vec<String>,
 }
 
-/// Cached metadata for a single prompt file.
+/// Cached metadata for a single skill file.
 #[derive(Debug, Clone)]
-pub struct PromptInfo {
-    /// Filesystem path to the prompt markdown.
+pub struct SkillInfo {
+    /// Filesystem path to the skill markdown.
     pub path: PathBuf,
+    /// Directory containing the skill and its companion files (scripts/, references/, etc.).
+    /// For flat skills (e.g., .jumble/skills/my-skill.md), this is None.
+    /// For SKILL.md files in directories, this is the parent directory.
+    pub skill_dir: Option<PathBuf>,
     /// Optional parsed YAML frontmatter at the top of the file (between --- markers).
-    pub frontmatter: Option<PromptFrontmatter>,
-    /// A short preview snippet from the body of the prompt (first few lines).
+    pub frontmatter: Option<SkillFrontmatter>,
+    /// A short preview snippet from the body of the skill (first few lines).
     pub preview: String,
 }
 
-/// Discovered prompts for a project (from .jumble/prompts/*.md)
+/// Discovered skills for a project (from .jumble/skills/*.md)
 #[derive(Debug, Clone, Default)]
-pub struct ProjectPrompts {
-    /// Map from prompt topic (file stem) to cached prompt metadata.
-    pub prompts: HashMap<String, PromptInfo>,
+pub struct ProjectSkills {
+    /// Map from skill topic (file stem) to cached skill metadata.
+    pub skills: HashMap<String, SkillInfo>,
 }
 
 /// Conventions and gotchas for a project (from .jumble/conventions.toml)

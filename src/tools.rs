@@ -1,7 +1,7 @@
 //! MCP tool implementations.
 
 use crate::config::{
-    Concept, ProjectConfig, ProjectConventions, ProjectDocs, ProjectPrompts, WorkspaceConfig,
+    Concept, ProjectConfig, ProjectConventions, ProjectDocs, ProjectSkills, WorkspaceConfig,
 };
 use crate::format::{
     format_api, format_commands, format_concept, format_dependencies, format_entry_points,
@@ -15,7 +15,7 @@ use std::path::PathBuf;
 pub type ProjectData = (
     PathBuf,
     ProjectConfig,
-    ProjectPrompts,
+    ProjectSkills,
     ProjectConventions,
     ProjectDocs,
 );
@@ -107,8 +107,8 @@ pub fn tools_list() -> Value {
                 }
             },
             {
-                "name": "list_prompts",
-                "description": "Lists available task-specific prompts for a project. Prompts provide focused context for specific tasks like adding endpoints, debugging, etc.",
+                "name": "list_skills",
+                "description": "Lists available task-specific skills for a project. Skills provide focused context for specific tasks like adding endpoints, debugging, etc.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -121,8 +121,8 @@ pub fn tools_list() -> Value {
                 }
             },
             {
-                "name": "get_prompt",
-                "description": "Retrieves a task-specific prompt containing focused context and instructions for a particular task.",
+                "name": "get_skill",
+                "description": "Retrieves a task-specific skill containing focused context and instructions for a particular task.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -132,7 +132,7 @@ pub fn tools_list() -> Value {
                         },
                         "topic": {
                             "type": "string",
-                            "description": "The prompt topic (e.g., 'add-endpoint', 'debug-auth')"
+                            "description": "The skill topic (e.g., 'add-endpoint', 'debug-auth')"
                         }
                     },
                     "required": ["project", "topic"]
@@ -292,7 +292,7 @@ pub fn list_projects(projects: &HashMap<String, ProjectData>) -> Result<String, 
     }
 
     let mut output = String::new();
-    for (name, (path, config, _prompts, _conventions, _docs)) in projects {
+    for (name, (path, config, _skills, _conventions, _docs)) in projects {
         let lang = config.project.language.as_deref().unwrap_or("unknown");
         output.push_str(&format!(
             "- **{}** ({}): {}\n  Path: {}\n",
@@ -314,7 +314,7 @@ pub fn get_project_info(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'project' argument")?;
 
-    let (path, config, _prompts, _conventions, _docs) = projects
+    let (path, config, _skills, _conventions, _docs) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -482,7 +482,7 @@ pub fn get_related_files(
     Ok(output)
 }
 
-pub fn list_prompts(
+pub fn list_skills(
     projects: &HashMap<String, ProjectData>,
     args: &Value,
 ) -> Result<String, String> {
@@ -491,23 +491,23 @@ pub fn list_prompts(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'project' argument")?;
 
-    let (_, _, prompts, _, _) = projects
+    let (_, _, skills, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
-    if prompts.prompts.is_empty() {
+    if skills.skills.is_empty() {
         return Ok(format!(
-            "No prompts found for '{}'. Create .jumble/prompts/*.md files to add task-specific context.",
+            "No skills found for '{}'. Create .jumble/skills/*.md files to add task-specific context.",
             project_name
         ));
     }
 
-    let mut output = format!("Available prompts for '{}':\n\n", project_name);
+    let mut output = format!("Available skills for '{}':\n\n", project_name);
 
     // Include any available frontmatter description or, as a fallback, the first
-    // line of the cached preview. This makes prompt listings more informative
+    // line of the cached preview. This makes skill listings more informative
     // and exercises the cached metadata so it is not considered dead code.
-    for (name, info) in &prompts.prompts {
+    for (name, info) in &skills.skills {
         let mut line = format!("- {}", name);
 
         if let Some(fm) = &info.frontmatter {
@@ -535,11 +535,11 @@ pub fn list_prompts(
         output.push('\n');
     }
 
-    output.push_str("\nUse get_prompt(project, topic) to retrieve a specific prompt.");
+    output.push_str("\nUse get_skill(project, topic) to retrieve a specific skill.");
     Ok(output)
 }
 
-pub fn get_prompt(
+pub fn get_skill(
     projects: &HashMap<String, ProjectData>,
     args: &Value,
 ) -> Result<String, String> {
@@ -553,25 +553,116 @@ pub fn get_prompt(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'topic' argument")?;
 
-    let (_, _, prompts, _, _) = projects
+    let (_, _, skills, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
-    let prompt_info = prompts.prompts.get(topic).ok_or_else(|| {
-        let available: Vec<&str> = prompts.prompts.keys().map(|s| s.as_str()).collect();
+    let skill_info = skills.skills.get(topic).ok_or_else(|| {
+        let available: Vec<&str> = skills.skills.keys().map(|s| s.as_str()).collect();
         if available.is_empty() {
-            format!("No prompts found for '{}'", project_name)
+            format!("No skills found for '{}'", project_name)
         } else {
             format!(
-                "Prompt '{}' not found. Available: {}",
+                "Skill '{}' not found. Available: {}",
                 topic,
                 available.join(", ")
             )
         }
     })?;
 
-    std::fs::read_to_string(&prompt_info.path)
-        .map_err(|e| format!("Failed to read prompt: {}", e))
+    // Read the main skill file
+    let skill_content = std::fs::read_to_string(&skill_info.path)
+        .map_err(|e| format!("Failed to read skill: {}", e))?;
+
+    // If this skill has a directory with companion files, include them
+    if let Some(skill_dir) = &skill_info.skill_dir {
+        let companions = discover_companion_files(skill_dir);
+        if !companions.is_empty() {
+            return Ok(format_skill_with_companions(&skill_content, &companions));
+        }
+    }
+
+    Ok(skill_content)
+}
+
+/// Companion file entry discovered in a skill directory
+#[derive(Debug)]
+struct CompanionFile {
+    relative_path: String,
+    is_dir: bool,
+}
+
+/// Discover companion files and directories in a skill folder.
+/// Looks for common subdirectories: scripts/, references/, docs/, assets/, examples/
+fn discover_companion_files(skill_dir: &std::path::Path) -> Vec<CompanionFile> {
+    let mut companions = Vec::new();
+    
+    // Common companion directory names for Claude/Codex skills
+    let known_dirs = ["scripts", "references", "docs", "assets", "examples", "templates"];
+    
+    for dir_name in &known_dirs {
+        let dir_path = skill_dir.join(dir_name);
+        if dir_path.is_dir() {
+            // Add the directory itself
+            companions.push(CompanionFile {
+                relative_path: dir_name.to_string(),
+                is_dir: true,
+            });
+            
+            // List files in the directory (non-recursive for now)
+            if let Ok(entries) = std::fs::read_dir(&dir_path) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_file() {
+                            if let Some(file_name) = entry.file_name().to_str() {
+                                companions.push(CompanionFile {
+                                    relative_path: format!("{}/{}", dir_name, file_name),
+                                    is_dir: false,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    companions
+}
+
+/// Format skill content with companion files listed at the end
+fn format_skill_with_companions(skill_content: &str, companions: &[CompanionFile]) -> String {
+    let mut output = String::from(skill_content);
+    
+    // Add companion files section
+    output.push_str("\n\n---\n\n");
+    output.push_str("## Companion Resources\n\n");
+    output.push_str("This skill includes additional resources:\n\n");
+    
+    // Group by directory
+    let mut current_dir: Option<String> = None;
+    for companion in companions {
+        if companion.is_dir {
+            current_dir = Some(companion.relative_path.clone());
+            output.push_str(&format!("\n### {}\n", companion.relative_path));
+        } else {
+            // Extract directory and filename
+            if let Some(slash_pos) = companion.relative_path.rfind('/') {
+                let dir = &companion.relative_path[..slash_pos];
+                let file = &companion.relative_path[slash_pos + 1..];
+                
+                if current_dir.as_deref() == Some(dir) {
+                    output.push_str(&format!("- `{}`\n", file));
+                } else {
+                    output.push_str(&format!("- `{}`\n", companion.relative_path));
+                }
+            } else {
+                output.push_str(&format!("- `{}`\n", companion.relative_path));
+            }
+        }
+    }
+    
+    output
 }
 
 pub fn get_conventions(
@@ -884,7 +975,7 @@ mod tests {
             },
         };
 
-        let prompts = ProjectPrompts::default();
+        let skills = ProjectSkills::default();
         let conventions = ProjectConventions {
             conventions: {
                 let mut map = HashMap::new();
@@ -913,7 +1004,7 @@ mod tests {
 
         (
             "test-project".to_string(),
-            (PathBuf::from("/test"), config, prompts, conventions, docs),
+            (PathBuf::from("/test"), config, skills, conventions, docs),
         )
     }
 
@@ -1112,13 +1203,116 @@ mod tests {
         assert!(tool_names.contains(&"get_commands"));
         assert!(tool_names.contains(&"get_architecture"));
         assert!(tool_names.contains(&"get_related_files"));
-        assert!(tool_names.contains(&"list_prompts"));
-        assert!(tool_names.contains(&"get_prompt"));
+        assert!(tool_names.contains(&"list_skills"));
+        assert!(tool_names.contains(&"get_skill"));
         assert!(tool_names.contains(&"get_conventions"));
         assert!(tool_names.contains(&"get_docs"));
         assert!(tool_names.contains(&"get_workspace_overview"));
         assert!(tool_names.contains(&"get_workspace_conventions"));
         assert!(tool_names.contains(&"reload_workspace"));
         assert!(tool_names.contains(&"get_jumble_authoring_prompt"));
+    }
+
+    #[test]
+    fn test_discover_companion_files_empty_directory() {
+        // Create a temporary skill directory with no companion files
+        let tmp_dir = std::env::temp_dir().join("jumble_test_empty_skill");
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+
+        let companions = discover_companion_files(&tmp_dir);
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+
+        assert!(companions.is_empty());
+    }
+
+    #[test]
+    fn test_discover_companion_files_with_scripts() {
+        // Create a temporary skill directory with scripts/ subdirectory
+        let tmp_dir = std::env::temp_dir().join("jumble_test_skill_with_scripts");
+        let scripts_dir = tmp_dir.join("scripts");
+        std::fs::create_dir_all(&scripts_dir).unwrap();
+        std::fs::write(scripts_dir.join("helper.sh"), "#!/bin/bash\necho test").unwrap();
+        std::fs::write(scripts_dir.join("setup.py"), "print('setup')").unwrap();
+
+        let companions = discover_companion_files(&tmp_dir);
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+
+        // Should find the scripts directory and the two files
+        assert!(!companions.is_empty());
+        assert!(companions.iter().any(|c| c.relative_path == "scripts" && c.is_dir));
+        assert!(companions.iter().any(|c| c.relative_path.contains("helper.sh") && !c.is_dir));
+        assert!(companions.iter().any(|c| c.relative_path.contains("setup.py") && !c.is_dir));
+    }
+
+    #[test]
+    fn test_discover_companion_files_multiple_dirs() {
+        // Create a temporary skill directory with multiple companion directories
+        let tmp_dir = std::env::temp_dir().join("jumble_test_skill_multi");
+        let scripts_dir = tmp_dir.join("scripts");
+        let refs_dir = tmp_dir.join("references");
+        let assets_dir = tmp_dir.join("assets");
+        
+        std::fs::create_dir_all(&scripts_dir).unwrap();
+        std::fs::create_dir_all(&refs_dir).unwrap();
+        std::fs::create_dir_all(&assets_dir).unwrap();
+        
+        std::fs::write(scripts_dir.join("build.sh"), "#!/bin/bash").unwrap();
+        std::fs::write(refs_dir.join("api-docs.md"), "# API").unwrap();
+        std::fs::write(assets_dir.join("template.json"), "{}").unwrap();
+
+        let companions = discover_companion_files(&tmp_dir);
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+
+        // Should find all three directories
+        assert!(companions.iter().any(|c| c.relative_path == "scripts" && c.is_dir));
+        assert!(companions.iter().any(|c| c.relative_path == "references" && c.is_dir));
+        assert!(companions.iter().any(|c| c.relative_path == "assets" && c.is_dir));
+        
+        // And all three files
+        assert!(companions.iter().any(|c| c.relative_path.contains("build.sh")));
+        assert!(companions.iter().any(|c| c.relative_path.contains("api-docs.md")));
+        assert!(companions.iter().any(|c| c.relative_path.contains("template.json")));
+    }
+
+    #[test]
+    fn test_format_skill_with_companions() {
+        let skill_content = "# My Skill\n\nThis is a test skill.";
+        let companions = vec![
+            CompanionFile {
+                relative_path: "scripts".to_string(),
+                is_dir: true,
+            },
+            CompanionFile {
+                relative_path: "scripts/helper.sh".to_string(),
+                is_dir: false,
+            },
+            CompanionFile {
+                relative_path: "references".to_string(),
+                is_dir: true,
+            },
+            CompanionFile {
+                relative_path: "references/guide.md".to_string(),
+                is_dir: false,
+            },
+        ];
+
+        let result = format_skill_with_companions(skill_content, &companions);
+
+        // Should contain original content
+        assert!(result.contains("# My Skill"));
+        assert!(result.contains("This is a test skill."));
+        
+        // Should contain companion resources section
+        assert!(result.contains("## Companion Resources"));
+        assert!(result.contains("### scripts"));
+        assert!(result.contains("`helper.sh`"));
+        assert!(result.contains("### references"));
+        assert!(result.contains("`guide.md`"));
     }
 }

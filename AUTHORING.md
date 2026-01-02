@@ -414,11 +414,11 @@ summary = "High-level architecture, component diagram, data flow"
 
 ---
 
-## prompts/*.md
+## skills/*.md
 
-Task-specific prompts provide focused context for common operations. Each prompt is a markdown file in `.jumble/prompts/`.
+Task-specific skills provide focused context for common operations. Each skill is a markdown file in `.jumble/skills/`.
 
-### Example: `.jumble/prompts/add-endpoint.md`
+### Example: `.jumble/skills/add-endpoint.md`
 
 ```markdown
 # Adding a New Endpoint
@@ -441,7 +441,7 @@ Task-specific prompts provide focused context for common operations. Each prompt
 - `src/handlers/users.rs` - Example handler
 ```
 
-### Common Prompts to Create
+### Common Skills to Create
 
 - `add-endpoint.md` - Adding API endpoints
 - `add-migration.md` - Database migrations
@@ -451,14 +451,30 @@ Task-specific prompts provide focused context for common operations. Each prompt
 
 ### Guidelines
 
-- Focus on one task per prompt
+- Focus on one task per skill
 - Include concrete steps, not just concepts
 - Reference actual files in the project
 - Keep under 500 lines (remember: the goal is focused context)
 
-### Claude Skills
+### Structured Skills (Claude/Codex Format)
 
-If you already have skills in the Claude Skill.md format, Jumble will autodiscover these and add them as prompts.
+Jumble autodiscovers structured skills from:
+- `.claude/skills/**/SKILL.md` (project-local and `$HOME`)
+- `.codex/skills/**/SKILL.md` (project-local and `$HOME`)
+
+Structured skills can include companion resources:
+
+```
+my-skill/
+  SKILL.md          # Main skill instructions
+  scripts/          # Executable helper scripts
+  references/       # Supporting documentation
+  docs/             # Additional context
+  assets/           # Templates, examples
+  examples/         # Sample code
+```
+
+When you retrieve a structured skill via `get_skill`, Jumble automatically lists all companion files, so you don't need to rewrite existing Claude or Codex skills.
 
 ---
 

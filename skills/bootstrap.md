@@ -1,16 +1,16 @@
 ---
 name: bootstrap
-description: Prompt for bootstrapping jumble context files (project, conventions, docs) for a project or workspace using AUTHORING.md.
+description: Skill for bootstrapping jumble context files (project, conventions, docs) for a project or workspace using AUTHORING.md.
 tags: [jumble, context, bootstrap]
 ---
 
 # Bootstrap Jumble Context
 
-Use this prompt to ask an AI to create jumble context files for a project.
+Use this skill to ask an AI to create jumble context files for a project.
 
 ---
 
-## Full Prompt
+## Full Usage
 
 ```
 Create jumble context for this project.
@@ -40,7 +40,7 @@ Focus on what helps an AI understand this codebase quickly. Don't over-document:
 
 ---
 
-## Minimal Prompt
+## Minimal Usage
 
 ```
 Create jumble context for this project following the guide at [JUMBLE_PATH]/AUTHORING.md
@@ -71,5 +71,5 @@ Start with the most important projects. Use `related_projects` to show how they 
 ## Tips
 
 - Replace `[JUMBLE_PATH]` with the actual path to your jumble installation
-- If the AI has access to jumble as an MCP server, it can call `get_prompt("jumble", "bootstrap")` instead
+- If the AI has access to jumble as an MCP server, it can call `get_skill("jumble", "bootstrap")` instead
 - For large projects, start with project.toml only, then add conventions.toml after reviewing the initial output

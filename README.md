@@ -103,7 +103,12 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-Jumble supports loading Claude Skills.md files.
+Jumble autodiscovers skills from multiple sources:
+- `.jumble/skills/*.md` - Project-specific flat skills
+- `.claude/skills/**/SKILL.md` - Claude-style structured skills
+- `.codex/skills/**/SKILL.md` - Codex-style structured skills (both project-local and `$HOME`)
+
+Structured skills (Claude/Codex format) can include companion resources like `scripts/`, `references/`, `docs/`, `assets/`, and `examples/` subdirectories. When you retrieve a skill with `get_skill`, companion files are automatically listed.
 
 ## Usage with Windsurf
 
@@ -265,7 +270,7 @@ feature_flags = "Features enabled by one project affect all dependents"
 
 - `.jumble/conventions.toml` - Project-specific conventions and gotchas
 - `.jumble/docs.toml` - Documentation index with summaries
-- `.jumble/prompts/*.md` - Task-specific prompts for common operations
+- `.jumble/skills/*.md` - Task-specific skills for common operations
 
 See [AUTHORING.md](AUTHORING.md) for the complete guide.
 
@@ -353,12 +358,12 @@ get_docs(project: "my-project")
 get_docs(project: "my-project", topic: "configuration")
 ```
 
-#### list_prompts / get_prompt
-Lists or retrieves task-specific prompts for common operations.
+#### list_skills / get_skill
+Lists or retrieves task-specific skills for common operations.
 
 ```
-list_prompts(project: "my-project")
-get_prompt(project: "my-project", topic: "add-endpoint")
+list_skills(project: "my-project")
+get_skill(project: "my-project", topic: "add-endpoint")
 ```
 
 ## AI-Assisted Authoring
@@ -372,7 +377,7 @@ When asked to "create jumble context for project X", an AI should:
 1. Read AUTHORING.md to understand the heuristics
 2. Examine the project's manifest files, directory structure, and README
 3. Generate `.jumble/project.toml` (required)
-4. Optionally generate `conventions.toml`, `docs.toml`, and prompts
+4. Optionally generate `conventions.toml`, `docs.toml`, and skills
 
 ## Schema Validation
 
