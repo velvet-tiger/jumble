@@ -105,8 +105,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Jumble autodiscovers skills from multiple sources:
 - `.jumble/skills/*.md` - Project-specific flat skills
-- `.claude/skills/**/SKILL.md` - Claude-style structured skills
-- `.codex/skills/**/SKILL.md` - Codex-style structured skills (both project-local and `$HOME`)
+- `~/.jumble/skills/*.md` - Personal/global flat skills shared across projects
+- `.claude/skills/**/SKILL.md` - Claude-style structured skills (project-local)
+- `~/.claude/skills/**/SKILL.md` - Personal/global Claude-style structured skills
+- `.codex/skills/**/SKILL.md` - Codex-style structured skills (project-local and `$HOME`)
 
 Structured skills (Claude/Codex format) can include companion resources like `scripts/`, `references/`, `docs/`, `assets/`, and `examples/` subdirectories. When you retrieve a skill with `get_skill`, companion files are automatically listed.
 
@@ -270,7 +272,8 @@ feature_flags = "Features enabled by one project affect all dependents"
 
 - `.jumble/conventions.toml` - Project-specific conventions and gotchas
 - `.jumble/docs.toml` - Documentation index with summaries
-- `.jumble/skills/*.md` - Task-specific skills for common operations
+- `.jumble/skills/*.md` - Task-specific skills for common operations (project-local)
+- `~/.jumble/skills/*.md` - Personal/global skills that apply across projects
 
 See [AUTHORING.md](AUTHORING.md) for the complete guide.
 

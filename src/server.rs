@@ -89,7 +89,7 @@ impl Server {
         let mut skills = ProjectSkills::default();
         let skills_dir = jumble_dir.join("skills");
 
-        // Traditional .jumble/skills/*.md files
+        // Traditional project-local .jumble/skills/*.md files
         if skills_dir.is_dir() {
             if let Ok(entries) = std::fs::read_dir(&skills_dir) {
                 for entry in entries.filter_map(|e| e.ok()) {
@@ -116,6 +116,41 @@ impl Server {
             }
         }
 
+        // Personal/global Jumble skills: <home>/.jumble/skills/*.md
+        if let Some(home_dir) = resolve_home_dir() {
+            let global_skills_dir = home_dir.join(".jumble").join("skills");
+            if global_skills_dir.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&global_skills_dir) {
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let path = entry.path();
+                        if path.extension().map(|e| e == "md").unwrap_or(false) {
+                            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                                // Don't override project-local skills with global ones.
+                                if skills.skills.contains_key(stem) {
+                                    continue;
+                                }
+
+                                let (frontmatter, preview) = match std::fs::read_to_string(&path) {
+                                    Ok(content) => extract_skill_frontmatter_and_preview(&content),
+                                    Err(_) => (None, String::new()),
+                                };
+
+                                skills.skills.insert(
+                                    stem.to_string(),
+                                    SkillInfo {
+                                        path: path.clone(),
+                                        skill_dir: None,
+                                        frontmatter,
+                                        preview,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Project-local Claude skills: <project_root>/.claude/skills/**/SKILL.md
         if let Some(project_root) = jumble_dir.parent() {
             let claude_skills_dir = project_root.join(".claude/skills");
@@ -124,9 +159,9 @@ impl Server {
             }
         }
 
-        // Personal/global Claude skills: $HOME/.claude/skills/**/SKILL.md
-        if let Ok(home) = std::env::var("HOME") {
-            let personal_skills_dir = Path::new(&home).join(".claude/skills");
+        // Personal/global Claude skills: <home>/.claude/skills/**/SKILL.md
+        if let Some(home_dir) = resolve_home_dir() {
+            let personal_skills_dir = home_dir.join(".claude/skills");
             if personal_skills_dir.is_dir() {
                 discover_structured_skills_in_dir(&personal_skills_dir, &mut skills);
             }
@@ -140,9 +175,9 @@ impl Server {
             }
         }
 
-        // Personal/global Codex skills: $HOME/.codex/skills/**/SKILL.md
-        if let Ok(home) = std::env::var("HOME") {
-            let personal_codex_dir = Path::new(&home).join(".codex/skills");
+        // Personal/global Codex skills: <home>/.codex/skills/**/SKILL.md
+        if let Some(home_dir) = resolve_home_dir() {
+            let personal_codex_dir = home_dir.join(".codex/skills");
             if personal_codex_dir.is_dir() {
                 discover_structured_skills_in_dir(&personal_codex_dir, &mut skills);
             }
@@ -277,6 +312,33 @@ impl Server {
     }
 }
 
+/// Resolve the current user's home directory in a cross-platform way.
+///
+/// On Unix-like systems this prefers the `HOME` environment variable. On
+/// Windows it falls back to `USERPROFILE`, then `HOMEDRIVE` + `HOMEPATH`.
+fn resolve_home_dir() -> Option<PathBuf> {
+    if let Ok(home) = std::env::var("HOME") {
+        if !home.is_empty() {
+            return Some(PathBuf::from(home));
+        }
+    }
+
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        if !profile.is_empty() {
+            return Some(PathBuf::from(profile));
+        }
+    }
+
+    if let (Ok(drive), Ok(path)) = (std::env::var("HOMEDRIVE"), std::env::var("HOMEPATH")) {
+        let combined = format!("{}{}", drive, path);
+        if !combined.is_empty() {
+            return Some(PathBuf::from(combined));
+        }
+    }
+
+    None
+}
+
 /// Discover structured skills (Claude/Codex-style) with SKILL.md files and companion resources.
 fn discover_structured_skills_in_dir(root: &Path, skills: &mut ProjectSkills) {
     for entry in WalkDir::new(root)
@@ -382,6 +444,7 @@ fn extract_skill_frontmatter_and_preview(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_extract_frontmatter_and_preview_with_valid_frontmatter() {
@@ -483,5 +546,90 @@ mod tests {
             .expect("expected parsed frontmatter even without name");
         assert_eq!(fm.name, None);
         assert_eq!(fm.description.as_deref(), Some("Diagramming helper"));
+    }
+
+    #[test]
+    fn test_resolve_home_dir_and_global_jumble_skills() {
+        use std::env;
+
+        // Save original environment so we can restore after the test.
+        let orig_home = env::var("HOME").ok();
+        let orig_userprofile = env::var("USERPROFILE").ok();
+        let orig_homedrive = env::var("HOMEDRIVE").ok();
+        let orig_homepath = env::var("HOMEPATH").ok();
+
+        // Use a temporary directory as our synthetic home.
+        let tmp_root = std::env::temp_dir().join("jumble_test_home_global_skills");
+        let _ = std::fs::remove_dir_all(&tmp_root);
+        std::fs::create_dir_all(&tmp_root).unwrap();
+
+        env::set_var("HOME", &tmp_root);
+        env::remove_var("USERPROFILE");
+        env::remove_var("HOMEDRIVE");
+        env::remove_var("HOMEPATH");
+
+        let home = resolve_home_dir().expect("expected home directory");
+        assert_eq!(home, tmp_root);
+
+        // Global Jumble skills live in <home>/.jumble/skills/*.md
+        let global_skills_dir = home.join(".jumble").join("skills");
+        std::fs::create_dir_all(&global_skills_dir).unwrap();
+        let global_skill_path = global_skills_dir.join("global-skill.md");
+        std::fs::write(&global_skill_path, "# Global Skill\nBody").unwrap();
+
+        // Create a fake project with a .jumble directory.
+        let project_root = home.join("workspace").join("my-project");
+        let jumble_dir = project_root.join(".jumble");
+        let project_skills_dir = jumble_dir.join("skills");
+        std::fs::create_dir_all(&project_skills_dir).unwrap();
+
+        // Local skill with the same stem as a global one should win.
+        let local_first_path = project_skills_dir.join("local-first.md");
+        std::fs::write(&local_first_path, "# Local First\nBody").unwrap();
+        let global_conflict_path = global_skills_dir.join("local-first.md");
+        std::fs::write(&global_conflict_path, "# Global Conflict\nBody").unwrap();
+
+        let server = Server {
+            root: project_root.clone(),
+            workspace: None,
+            projects: HashMap::new(),
+        };
+
+        let skills = server.discover_skills(&jumble_dir);
+
+        // Global-only skill should be present and loaded from the global path.
+        let global_info = skills
+            .skills
+            .get("global-skill")
+            .expect("expected global skill discovered");
+        assert_eq!(global_info.path, global_skill_path);
+
+        // For a conflicting name, the project-local skill should take precedence.
+        let local_info = skills
+            .skills
+            .get("local-first")
+            .expect("expected local-first skill discovered");
+        assert_eq!(local_info.path, local_first_path);
+
+        // Best-effort cleanup; ignore failures.
+        let _ = std::fs::remove_dir_all(&tmp_root);
+
+        // Restore original environment.
+        match orig_home {
+            Some(v) => env::set_var("HOME", v),
+            None => env::remove_var("HOME"),
+        }
+        match orig_userprofile {
+            Some(v) => env::set_var("USERPROFILE", v),
+            None => env::remove_var("USERPROFILE"),
+        }
+        match orig_homedrive {
+            Some(v) => env::set_var("HOMEDRIVE", v),
+            None => env::remove_var("HOMEDRIVE"),
+        }
+        match orig_homepath {
+            Some(v) => env::set_var("HOMEPATH", v),
+            None => env::remove_var("HOMEPATH"),
+        }
     }
 }

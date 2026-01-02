@@ -462,6 +462,11 @@ Jumble autodiscovers structured skills from:
 - `.claude/skills/**/SKILL.md` (project-local and `$HOME`)
 - `.codex/skills/**/SKILL.md` (project-local and `$HOME`)
 
+In addition to project-local `.jumble/skills/*.md` files, you can also define
+**personal/global** flat skills in `~/.jumble/skills/*.md`. These are available
+in every workspace. If both a project and your home directory define a skill
+with the same filename (topic), the project-local skill takes precedence.
+
 Structured skills can include companion resources:
 
 ```
