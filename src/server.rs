@@ -89,6 +89,7 @@ impl Server {
         let mut prompts = ProjectPrompts::default();
         let prompts_dir = jumble_dir.join("prompts");
 
+        // Traditional .jumble/prompts/*.md files
         if prompts_dir.is_dir() {
             if let Ok(entries) = std::fs::read_dir(&prompts_dir) {
                 for entry in entries.filter_map(|e| e.ok()) {
@@ -111,6 +112,22 @@ impl Server {
                         }
                     }
                 }
+            }
+        }
+
+        // Project-local Claude skills: <project_root>/.claude/skills/**/SKILL.md
+        if let Some(project_root) = jumble_dir.parent() {
+            let claude_skills_dir = project_root.join(".claude/skills");
+            if claude_skills_dir.is_dir() {
+                discover_claude_skills_in_dir(&claude_skills_dir, &mut prompts);
+            }
+        }
+
+        // Personal/global Claude skills: $HOME/.claude/skills/**/SKILL.md
+        if let Ok(home) = std::env::var("HOME") {
+            let personal_skills_dir = Path::new(&home).join(".claude/skills");
+            if personal_skills_dir.is_dir() {
+                discover_claude_skills_in_dir(&personal_skills_dir, &mut prompts);
             }
         }
 
@@ -242,6 +259,65 @@ impl Server {
     }
 }
 
+/// Discover Claude-style SKILL.md files under a skills root and add them as prompts.
+fn discover_claude_skills_in_dir(root: &Path, prompts: &mut ProjectPrompts) {
+    for entry in WalkDir::new(root)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        // Claude skills conventionally use `SKILL.md` as the filename.
+        let is_skill = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.eq_ignore_ascii_case("SKILL.md"))
+            .unwrap_or(false);
+        if !is_skill {
+            continue;
+        }
+
+        let (frontmatter, preview) = match std::fs::read_to_string(path) {
+            Ok(content) => extract_prompt_frontmatter_and_preview(&content),
+            Err(_) => (None, String::new()),
+        };
+
+        // Determine the prompt key. Prefer the frontmatter `name` field when present,
+        // otherwise fall back to the containing directory name.
+        let mut key = frontmatter
+            .as_ref()
+            .and_then(|fm| fm.name.clone())
+            .unwrap_or_default();
+
+        if key.is_empty() {
+            key = path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                .unwrap_or("skill")
+                .to_string();
+        }
+
+        if key.is_empty() || prompts.prompts.contains_key(&key) {
+            // Skip empty keys and avoid overwriting existing prompts from .jumble/prompts.
+            continue;
+        }
+
+        prompts.prompts.insert(
+            key,
+            PromptInfo {
+                path: path.to_path_buf(),
+                frontmatter,
+                preview,
+            },
+        );
+    }
+}
+
 /// Extract optional YAML frontmatter and a preview snippet from a prompt file.
 ///
 /// Frontmatter is only recognized when the file starts with a line containing only `---`.
@@ -324,5 +400,66 @@ mod tests {
         // In this failure mode we currently treat the whole file as body for the preview.
         assert!(preview.starts_with("---"));
         assert!(preview.contains("name: broken"));
+    }
+
+    #[test]
+    fn test_discover_claude_skills_uses_frontmatter_name() {
+        // Create a temporary skills directory structure:
+        // <tmp>/skills/explaining-code/SKILL.md
+        let tmp_root = std::env::temp_dir().join("jumble_test_skills_frontmatter");
+        let skill_dir = tmp_root.join("explaining-code");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+
+        let skill_path = skill_dir.join("SKILL.md");
+        let content = "---\nname: explaining-code\ndescription: Explains code with diagrams\n---\nBody";
+        std::fs::write(&skill_path, content).unwrap();
+
+        let mut prompts = ProjectPrompts::default();
+        discover_claude_skills_in_dir(&tmp_root, &mut prompts);
+
+        // Clean up best-effort; ignore failures.
+        let _ = std::fs::remove_dir_all(&tmp_root);
+
+        let info = prompts
+            .prompts
+            .get("explaining-code")
+            .expect("expected skill discovered with name from frontmatter");
+        assert_eq!(info.path, skill_path);
+        let fm = info
+            .frontmatter
+            .as_ref()
+            .expect("expected parsed frontmatter");
+        assert_eq!(fm.name.as_deref(), Some("explaining-code"));
+        assert_eq!(fm.description.as_deref(), Some("Explains code with diagrams"));
+    }
+
+    #[test]
+    fn test_discover_claude_skills_falls_back_to_dir_name_when_no_name() {
+        // Create a temporary skills directory structure:
+        // <tmp>/skills/diagramming/SKILL.md (no `name` field in frontmatter)
+        let tmp_root = std::env::temp_dir().join("jumble_test_skills_dirname");
+        let skill_dir = tmp_root.join("diagramming");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+
+        let skill_path = skill_dir.join("SKILL.md");
+        let content = "---\ndescription: Diagramming helper\n---\nBody";
+        std::fs::write(&skill_path, content).unwrap();
+
+        let mut prompts = ProjectPrompts::default();
+        discover_claude_skills_in_dir(&tmp_root, &mut prompts);
+
+        let _ = std::fs::remove_dir_all(&tmp_root);
+
+        let info = prompts
+            .prompts
+            .get("diagramming")
+            .expect("expected skill discovered with key from directory name");
+        assert_eq!(info.path, skill_path);
+        let fm = info
+            .frontmatter
+            .as_ref()
+            .expect("expected parsed frontmatter even without name");
+        assert_eq!(fm.name, None);
+        assert_eq!(fm.description.as_deref(), Some("Diagramming helper"));
     }
 }
