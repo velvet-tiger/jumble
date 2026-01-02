@@ -4,7 +4,7 @@ An MCP server that provides queryable, on-demand project context to LLMs.
 
 ## The Problem
 
-Large documentation files and WARP.md overload LLM context windows. Even well-structured docs require reading everything upfront, wasting tokens on irrelevant information.
+Large documentation files overload LLM context windows. Even well-structured docs require reading everything upfront, wasting tokens on irrelevant information.
 
 ## The Solution
 
@@ -102,6 +102,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   }
 }
 ```
+
+Jumble supports loading Claude Skills.md files.
 
 ## Creating Context Files
 

@@ -298,7 +298,7 @@ name = "harmony-proxy"
 description = "Secure reverse proxy for healthcare data mesh"
 language = "rust"
 version = "0.2.1"
-repository = "https://github.com/org/harmony-proxy"
+repository = "https://github.com/aurabx/harmony-proxy"
 
 [commands]
 build = "cargo build --release"
@@ -455,6 +455,10 @@ Task-specific prompts provide focused context for common operations. Each prompt
 - Include concrete steps, not just concepts
 - Reference actual files in the project
 - Keep under 500 lines (remember: the goal is focused context)
+
+### Claude Skills
+
+If you already have skills in the Claude Skill.md format, Jumble will autodiscover these and add them as prompts.
 
 ---
 
