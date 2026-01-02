@@ -62,6 +62,8 @@ cargo install jumble
 
 Jumble discovers projects by scanning for `.jumble/project.toml` files. It also looks for a `.jumble/workspace.toml` at the root for workspace-level configuration.
 
+Projects and workspace metadata are loaded once when the server starts and cached in memory. If you change any `.jumble/*` files, either restart the `jumble` process or call the `reload_workspace` tool (see below) to pick up changes without restarting.
+
 Set the root directory via:
 
 1. `JUMBLE_ROOT` environment variable
@@ -193,6 +195,13 @@ Returns workspace-level conventions and gotchas that apply across all projects.
 ```
 get_workspace_conventions()
 get_workspace_conventions(category: "gotchas")
+```
+
+#### reload_workspace
+Reloads workspace and project metadata from disk. Use this after editing `.jumble` files if you want to avoid restarting the MCP server.
+
+```
+reload_workspace()
 ```
 
 ### Project Tools
