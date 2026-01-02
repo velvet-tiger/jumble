@@ -7,7 +7,13 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::config::{
-    ProjectConfig, ProjectConventions, ProjectDocs, ProjectPrompts, WorkspaceConfig,
+    ProjectConfig,
+    ProjectConventions,
+    ProjectDocs,
+    ProjectPrompts,
+    PromptFrontmatter,
+    PromptInfo,
+    WorkspaceConfig,
 };
 use crate::protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::tools::{self, ProjectData};
@@ -89,7 +95,19 @@ impl Server {
                     let path = entry.path();
                     if path.extension().map(|e| e == "md").unwrap_or(false) {
                         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            prompts.prompts.insert(stem.to_string(), path);
+                            let (frontmatter, preview) = match std::fs::read_to_string(&path) {
+                                Ok(content) => extract_prompt_frontmatter_and_preview(&content),
+                                Err(_) => (None, String::new()),
+                            };
+
+                            prompts.prompts.insert(
+                                stem.to_string(),
+                                PromptInfo {
+                                    path: path.clone(),
+                                    frontmatter,
+                                    preview,
+                                },
+                            );
                         }
                     }
                 }
@@ -221,5 +239,90 @@ impl Server {
                 "isError": true
             })),
         }
+    }
+}
+
+/// Extract optional YAML frontmatter and a preview snippet from a prompt file.
+///
+/// Frontmatter is only recognized when the file starts with a line containing only `---`.
+/// Everything between the first and second such markers is treated as YAML.
+/// The preview is taken from the body that follows the frontmatter (or from the
+/// top of the file when no frontmatter is present).
+fn extract_prompt_frontmatter_and_preview(
+    content: &str,
+) -> (Option<PromptFrontmatter>, String) {
+    const PREVIEW_MAX_LINES: usize = 16;
+
+    // Helper to build a preview from a body slice.
+    fn build_preview(body: &str) -> String {
+        body
+            .lines()
+            .take(PREVIEW_MAX_LINES)
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    // Detect YAML frontmatter only if the file starts with `---` on the first line.
+    if content.starts_with("---\n") {
+        // Skip the initial `---\n`.
+        let rest = &content[4..];
+        if let Some(end_idx) = rest.find("\n---\n") {
+            let frontmatter_str = &rest[..end_idx];
+            let body_start = end_idx + "\n---\n".len();
+            let body = &rest[body_start..];
+
+            let frontmatter = serde_yaml::from_str::<PromptFrontmatter>(frontmatter_str).ok();
+            let preview = build_preview(body);
+            return (frontmatter, preview);
+        }
+    }
+
+    // No valid frontmatter header found; fall back to using the first lines of the file.
+    (None, build_preview(content))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_frontmatter_and_preview_with_valid_frontmatter() {
+        let content = "---\nname: bootstrap\ndescription: Test description\ntags: [a, b]\n---\n# Title\nBody line 1\nBody line 2\n";
+
+        let (frontmatter, preview) = extract_prompt_frontmatter_and_preview(content);
+
+        let fm = frontmatter.expect("expected some frontmatter");
+        assert_eq!(fm.name.as_deref(), Some("bootstrap"));
+        assert_eq!(fm.description.as_deref(), Some("Test description"));
+        assert_eq!(fm.tags, vec!["a", "b"]);
+
+        // Preview should be built from the body after the closing `---`.
+        assert!(preview.starts_with("# Title"));
+        assert!(preview.contains("Body line 1"));
+    }
+
+    #[test]
+    fn test_extract_frontmatter_and_preview_without_frontmatter() {
+        let content = "# Title\nLine 1\nLine 2\n";
+
+        let (frontmatter, preview) = extract_prompt_frontmatter_and_preview(content);
+
+        assert!(frontmatter.is_none());
+        // Preview should include the top of the file when no frontmatter exists.
+        assert!(preview.starts_with("# Title"));
+        assert!(preview.contains("Line 1"));
+    }
+
+    #[test]
+    fn test_extract_frontmatter_and_preview_with_unclosed_frontmatter() {
+        // Starts with `---` but has no closing marker; this should fall back to no frontmatter.
+        let content = "---\nname: broken\n# Title\nLine 1\n";
+
+        let (frontmatter, preview) = extract_prompt_frontmatter_and_preview(content);
+
+        assert!(frontmatter.is_none());
+        // In this failure mode we currently treat the whole file as body for the preview.
+        assert!(preview.starts_with("---"));
+        assert!(preview.contains("name: broken"));
     }
 }

@@ -1,3 +1,9 @@
+---
+name: bootstrap
+description: Prompt for bootstrapping jumble context files (project, conventions, docs) for a project or workspace using AUTHORING.md.
+tags: [jumble, context, bootstrap]
+---
+
 # Bootstrap Jumble Context
 
 Use this prompt to ask an AI to create jumble context files for a project.

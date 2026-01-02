@@ -436,9 +436,38 @@ pub fn list_prompts(
     }
 
     let mut output = format!("Available prompts for '{}':\n\n", project_name);
-    for name in prompts.prompts.keys() {
-        output.push_str(&format!("- {}\n", name));
+
+    // Include any available frontmatter description or, as a fallback, the first
+    // line of the cached preview. This makes prompt listings more informative
+    // and exercises the cached metadata so it is not considered dead code.
+    for (name, info) in &prompts.prompts {
+        let mut line = format!("- {}", name);
+
+        if let Some(fm) = &info.frontmatter {
+            if let Some(desc) = &fm.description {
+                if !desc.is_empty() {
+                    line.push_str(&format!(": {}", desc));
+                    output.push_str(&line);
+                    output.push('\n');
+                    continue;
+                }
+            }
+        }
+
+        let first_preview_line = info
+            .preview
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim();
+        if !first_preview_line.is_empty() {
+            line.push_str(&format!(": {}", first_preview_line));
+        }
+
+        output.push_str(&line);
+        output.push('\n');
     }
+
     output.push_str("\nUse get_prompt(project, topic) to retrieve a specific prompt.");
     Ok(output)
 }
@@ -461,7 +490,7 @@ pub fn get_prompt(
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
-    let prompt_path = prompts.prompts.get(topic).ok_or_else(|| {
+    let prompt_info = prompts.prompts.get(topic).ok_or_else(|| {
         let available: Vec<&str> = prompts.prompts.keys().map(|s| s.as_str()).collect();
         if available.is_empty() {
             format!("No prompts found for '{}'", project_name)
@@ -474,7 +503,8 @@ pub fn get_prompt(
         }
     })?;
 
-    std::fs::read_to_string(prompt_path).map_err(|e| format!("Failed to read prompt: {}", e))
+    std::fs::read_to_string(&prompt_info.path)
+        .map_err(|e| format!("Failed to read prompt: {}", e))
 }
 
 pub fn get_conventions(

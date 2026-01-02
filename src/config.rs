@@ -69,10 +69,41 @@ pub struct Concept {
     pub summary: String,
 }
 
+/// Optional YAML frontmatter for a prompt file.
+///
+/// This mirrors the common `SKILL.md` / frontmatter pattern used by other tools:
+///
+/// ---
+/// name: explaining-code
+/// description: Explains code with visual diagrams and analogies
+/// tags: [explain, diagram, analogy]
+/// ---
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct PromptFrontmatter {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Cached metadata for a single prompt file.
+#[derive(Debug, Clone)]
+pub struct PromptInfo {
+    /// Filesystem path to the prompt markdown.
+    pub path: PathBuf,
+    /// Optional parsed YAML frontmatter at the top of the file (between --- markers).
+    pub frontmatter: Option<PromptFrontmatter>,
+    /// A short preview snippet from the body of the prompt (first few lines).
+    pub preview: String,
+}
+
 /// Discovered prompts for a project (from .jumble/prompts/*.md)
 #[derive(Debug, Clone, Default)]
 pub struct ProjectPrompts {
-    pub prompts: HashMap<String, PathBuf>,
+    /// Map from prompt topic (file stem) to cached prompt metadata.
+    pub prompts: HashMap<String, PromptInfo>,
 }
 
 /// Conventions and gotchas for a project (from .jumble/conventions.toml)
