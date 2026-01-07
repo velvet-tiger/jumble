@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-01-07
+
+### Added
+- **Setup commands**: New `jumble setup` command with support for multiple AI tools:
+  - `jumble setup warp` - Creates/updates WARP.md with jumble usage guidance
+  - `jumble setup claude` - Creates Claude Desktop integration docs
+  - `jumble setup cursor` - Creates Cursor MCP configuration
+  - `jumble setup windsurf` - Creates Windsurf MCP configuration
+  - `jumble setup codex` - Creates Codex integration docs
+  - All setup commands support `--global` flag for user-wide configuration
+  - Smart section replacement in existing files with `--force` option
+- **Memory system**: Added persistent memory storage using RON format to track workspace state and improve performance
+- **Enhanced configuration checks**: Setup commands now verify MCP server configuration and provide copy-paste instructions when needed
+
+### Changed
+- Improved error handling and user experience across all setup flows
+- Enhanced documentation generation with better formatting and structure
+- Repository URL updated to reflect the correct GitHub organization (velvet-tiger/jumble)
+
+### Fixed
+- Code linting issues resolved for cleaner codebase
+- Improved test coverage for setup functionality
+
 ## [0.5.0] - 2026-01-05
 
 ### Added

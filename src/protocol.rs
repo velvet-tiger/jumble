@@ -102,7 +102,7 @@ mod tests {
     fn test_success_response_serialization() {
         let response = JsonRpcResponse::success(Some(json!(1)), json!({"status": "ok"}));
         let serialized = serde_json::to_string(&response).unwrap();
-        
+
         assert!(serialized.contains("\"jsonrpc\":\"2.0\""));
         assert!(serialized.contains("\"id\":1"));
         assert!(serialized.contains("\"result\""));
@@ -118,7 +118,7 @@ mod tests {
         };
         let response = JsonRpcResponse::error(Some(json!(1)), error);
         let serialized = serde_json::to_string(&response).unwrap();
-        
+
         assert!(serialized.contains("\"jsonrpc\":\"2.0\""));
         assert!(serialized.contains("\"error\""));
         assert!(serialized.contains("-32601"));
@@ -134,7 +134,7 @@ mod tests {
         };
         let response = JsonRpcResponse::error(Some(json!("req-1")), error);
         let serialized = serde_json::to_string(&response).unwrap();
-        
+
         assert!(serialized.contains("\"data\""));
         assert!(serialized.contains("\"field\":\"project\""));
     }

@@ -451,7 +451,10 @@ pub fn get_project_info(
         Some(f) => Err(format!("Unknown field: {}", f)),
         None => {
             let mut output = format!("# {}\n\n", config.project.name);
-            output.push_str(&format!("**Description:** {}\n", config.project.description));
+            output.push_str(&format!(
+                "**Description:** {}\n",
+                config.project.description
+            ));
             if let Some(lang) = &config.project.language {
                 output.push_str(&format!("**Language:** {}\n", lang));
             }
@@ -643,12 +646,7 @@ pub fn list_skills(
             }
         }
 
-        let first_preview_line = info
-            .preview
-            .lines()
-            .next()
-            .unwrap_or("")
-            .trim();
+        let first_preview_line = info.preview.lines().next().unwrap_or("").trim();
         if !first_preview_line.is_empty() {
             line.push_str(&format!(": {}", first_preview_line));
         }
@@ -661,10 +659,7 @@ pub fn list_skills(
     Ok(output)
 }
 
-pub fn get_skill(
-    projects: &HashMap<String, ProjectData>,
-    args: &Value,
-) -> Result<String, String> {
+pub fn get_skill(projects: &HashMap<String, ProjectData>, args: &Value) -> Result<String, String> {
     let project_name = args
         .get("project")
         .and_then(|v| v.as_str())
@@ -718,10 +713,17 @@ struct CompanionFile {
 /// Looks for common subdirectories: scripts/, references/, docs/, assets/, examples/
 fn discover_companion_files(skill_dir: &std::path::Path) -> Vec<CompanionFile> {
     let mut companions = Vec::new();
-    
+
     // Common companion directory names for Claude/Codex skills
-    let known_dirs = ["scripts", "references", "docs", "assets", "examples", "templates"];
-    
+    let known_dirs = [
+        "scripts",
+        "references",
+        "docs",
+        "assets",
+        "examples",
+        "templates",
+    ];
+
     for dir_name in &known_dirs {
         let dir_path = skill_dir.join(dir_name);
         if dir_path.is_dir() {
@@ -730,7 +732,7 @@ fn discover_companion_files(skill_dir: &std::path::Path) -> Vec<CompanionFile> {
                 relative_path: dir_name.to_string(),
                 is_dir: true,
             });
-            
+
             // List files in the directory (non-recursive for now)
             if let Ok(entries) = std::fs::read_dir(&dir_path) {
                 for entry in entries.filter_map(|e| e.ok()) {
@@ -748,19 +750,19 @@ fn discover_companion_files(skill_dir: &std::path::Path) -> Vec<CompanionFile> {
             }
         }
     }
-    
+
     companions
 }
 
 /// Format skill content with companion files listed at the end
 fn format_skill_with_companions(skill_content: &str, companions: &[CompanionFile]) -> String {
     let mut output = String::from(skill_content);
-    
+
     // Add companion files section
     output.push_str("\n\n---\n\n");
     output.push_str("## Companion Resources\n\n");
     output.push_str("This skill includes additional resources:\n\n");
-    
+
     // Group by directory
     let mut current_dir: Option<String> = None;
     for companion in companions {
@@ -772,7 +774,7 @@ fn format_skill_with_companions(skill_content: &str, companions: &[CompanionFile
             if let Some(slash_pos) = companion.relative_path.rfind('/') {
                 let dir = &companion.relative_path[..slash_pos];
                 let file = &companion.relative_path[slash_pos + 1..];
-                
+
                 if current_dir.as_deref() == Some(dir) {
                     output.push_str(&format!("- `{}`\n", file));
                 } else {
@@ -783,7 +785,7 @@ fn format_skill_with_companions(skill_content: &str, companions: &[CompanionFile
             }
         }
     }
-    
+
     output
 }
 
@@ -882,11 +884,7 @@ pub fn get_docs(projects: &HashMap<String, ProjectData>, args: &Value) -> Result
             // Return path to specific doc
             let doc = docs.docs.get(t).ok_or_else(|| {
                 let available: Vec<&str> = docs.docs.keys().map(|s| s.as_str()).collect();
-                format!(
-                    "Doc '{}' not found. Available: {}",
-                    t,
-                    available.join(", ")
-                )
+                format!("Doc '{}' not found. Available: {}", t, available.join(", "))
             })?;
             let full_path = path.join(&doc.path);
             Ok(format!(
@@ -1096,13 +1094,13 @@ pub fn store_memory(
         .save()
         .map_err(|e| format!("Failed to save memory database: {}", e))?;
 
-    Ok(format!("Memory stored: key='{}' for project '{}'", key, project_name))
+    Ok(format!(
+        "Memory stored: key='{}' for project '{}'",
+        key, project_name
+    ))
 }
 
-pub fn get_memory(
-    projects: &HashMap<String, ProjectData>,
-    args: &Value,
-) -> Result<String, String> {
+pub fn get_memory(projects: &HashMap<String, ProjectData>, args: &Value) -> Result<String, String> {
     let project_name = args
         .get("project")
         .and_then(|v| v.as_str())
@@ -1293,9 +1291,7 @@ pub fn delete_memory(
 
     // Delete from database
     let deleted = memory_db
-        .write(|db| {
-            db.remove(key).is_some()
-        })
+        .write(|db| db.remove(key).is_some())
         .map_err(|e| format!("Failed to write to memory database: {}", e))?;
 
     if !deleted {
@@ -1306,7 +1302,10 @@ pub fn delete_memory(
         .save()
         .map_err(|e| format!("Failed to save memory database: {}", e))?;
 
-    Ok(format!("Memory deleted: key='{}' for project '{}'", key, project_name))
+    Ok(format!(
+        "Memory deleted: key='{}' for project '{}'",
+        key, project_name
+    ))
 }
 
 pub fn clear_memories(
@@ -1343,7 +1342,7 @@ pub fn clear_memories(
                     .filter(|k| k.to_lowercase().contains(&pat_lower))
                     .cloned()
                     .collect();
-                
+
                 let count = keys_to_delete.len();
                 for key in keys_to_delete {
                     db.remove(&key);
@@ -1463,7 +1462,14 @@ mod tests {
 
         (
             "test-project".to_string(),
-            (test_path.clone(), config, skills, conventions, docs, memory_db),
+            (
+                test_path.clone(),
+                config,
+                skills,
+                conventions,
+                docs,
+                memory_db,
+            ),
         )
     }
 
@@ -1651,12 +1657,9 @@ mod tests {
     fn test_tools_list_contains_all_tools() {
         let list = tools_list();
         let tools = list["tools"].as_array().unwrap();
-        
-        let tool_names: Vec<&str> = tools
-            .iter()
-            .map(|t| t["name"].as_str().unwrap())
-            .collect();
-        
+
+        let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+
         assert!(tool_names.contains(&"list_projects"));
         assert!(tool_names.contains(&"get_project_info"));
         assert!(tool_names.contains(&"get_commands"));
@@ -1702,9 +1705,15 @@ mod tests {
 
         // Should find the scripts directory and the two files
         assert!(!companions.is_empty());
-        assert!(companions.iter().any(|c| c.relative_path == "scripts" && c.is_dir));
-        assert!(companions.iter().any(|c| c.relative_path.contains("helper.sh") && !c.is_dir));
-        assert!(companions.iter().any(|c| c.relative_path.contains("setup.py") && !c.is_dir));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path == "scripts" && c.is_dir));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path.contains("helper.sh") && !c.is_dir));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path.contains("setup.py") && !c.is_dir));
     }
 
     #[test]
@@ -1714,11 +1723,11 @@ mod tests {
         let scripts_dir = tmp_dir.join("scripts");
         let refs_dir = tmp_dir.join("references");
         let assets_dir = tmp_dir.join("assets");
-        
+
         std::fs::create_dir_all(&scripts_dir).unwrap();
         std::fs::create_dir_all(&refs_dir).unwrap();
         std::fs::create_dir_all(&assets_dir).unwrap();
-        
+
         std::fs::write(scripts_dir.join("build.sh"), "#!/bin/bash").unwrap();
         std::fs::write(refs_dir.join("api-docs.md"), "# API").unwrap();
         std::fs::write(assets_dir.join("template.json"), "{}").unwrap();
@@ -1729,14 +1738,26 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp_dir);
 
         // Should find all three directories
-        assert!(companions.iter().any(|c| c.relative_path == "scripts" && c.is_dir));
-        assert!(companions.iter().any(|c| c.relative_path == "references" && c.is_dir));
-        assert!(companions.iter().any(|c| c.relative_path == "assets" && c.is_dir));
-        
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path == "scripts" && c.is_dir));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path == "references" && c.is_dir));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path == "assets" && c.is_dir));
+
         // And all three files
-        assert!(companions.iter().any(|c| c.relative_path.contains("build.sh")));
-        assert!(companions.iter().any(|c| c.relative_path.contains("api-docs.md")));
-        assert!(companions.iter().any(|c| c.relative_path.contains("template.json")));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path.contains("build.sh")));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path.contains("api-docs.md")));
+        assert!(companions
+            .iter()
+            .any(|c| c.relative_path.contains("template.json")));
     }
 
     #[test]
@@ -1766,7 +1787,7 @@ mod tests {
         // Should contain original content
         assert!(result.contains("# My Skill"));
         assert!(result.contains("This is a test skill."));
-        
+
         // Should contain companion resources section
         assert!(result.contains("## Companion Resources"));
         assert!(result.contains("### scripts"));

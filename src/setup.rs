@@ -52,11 +52,10 @@ const JUMBLE_SECTION_MARKER: &str = "## Using Jumble for Project Context";
 /// Setup Warp integration by creating/updating WARP.md
 pub fn setup_warp(workspace_root: &Path, force: bool) -> Result<()> {
     let warp_md = workspace_root.join("WARP.md");
-    
+
     if warp_md.exists() {
-        let content = fs::read_to_string(&warp_md)
-            .context("Failed to read WARP.md")?;
-        
+        let content = fs::read_to_string(&warp_md).context("Failed to read WARP.md")?;
+
         if content.contains(JUMBLE_SECTION_MARKER) {
             if !force {
                 println!("✓ WARP.md already contains jumble rules");
@@ -65,11 +64,10 @@ pub fn setup_warp(workspace_root: &Path, force: bool) -> Result<()> {
                 println!("  jumble setup warp --force");
                 return Ok(());
             }
-            
+
             // Replace existing section
             let updated = replace_jumble_section(&content)?;
-            fs::write(&warp_md, updated)
-                .context("Failed to update WARP.md")?;
+            fs::write(&warp_md, updated).context("Failed to update WARP.md")?;
             println!("✓ Updated jumble rules in WARP.md");
         } else {
             // Append jumble section
@@ -79,9 +77,8 @@ pub fn setup_warp(workspace_root: &Path, force: bool) -> Result<()> {
             }
             updated.push('\n');
             updated.push_str(JUMBLE_SECTION);
-            
-            fs::write(&warp_md, updated)
-                .context("Failed to update WARP.md")?;
+
+            fs::write(&warp_md, updated).context("Failed to update WARP.md")?;
             println!("✓ Added jumble rules to existing WARP.md");
         }
     } else {
@@ -90,12 +87,11 @@ pub fn setup_warp(workspace_root: &Path, force: bool) -> Result<()> {
             "# WARP.md\n\nThis file provides guidance to WARP (warp.dev) when working with code in this repository.\n\n{}",
             JUMBLE_SECTION
         );
-        
-        fs::write(&warp_md, content)
-            .context("Failed to create WARP.md")?;
+
+        fs::write(&warp_md, content).context("Failed to create WARP.md")?;
         println!("✓ Created WARP.md with jumble rules");
     }
-    
+
     // Check for .jumble directory
     let jumble_dir = workspace_root.join(".jumble");
     if !jumble_dir.exists() {
@@ -104,7 +100,7 @@ pub fn setup_warp(workspace_root: &Path, force: bool) -> Result<()> {
         println!("   Create .jumble/project.toml to provide project context");
         println!("   See: https://github.com/velvet-tiger/jumble/blob/main/AUTHORING.md");
     }
-    
+
     println!();
     println!("Next steps:");
     println!("1. Ensure .jumble/project.toml exists (provides context to jumble)");
@@ -113,7 +109,7 @@ pub fn setup_warp(workspace_root: &Path, force: bool) -> Result<()> {
     println!("   - Add jumble with: --root {}", workspace_root.display());
     println!("3. Restart Warp or reload the window to apply changes");
     println!("4. Commit WARP.md to version control");
-    
+
     Ok(())
 }
 
@@ -122,36 +118,35 @@ fn replace_jumble_section(content: &str) -> Result<String> {
     let lines: Vec<&str> = content.lines().collect();
     let mut result = Vec::new();
     let mut in_jumble_section = false;
-    
+
     for line in lines {
         if line.starts_with("## Using Jumble for Project Context") {
             in_jumble_section = true;
             continue;
         }
-        
+
         if in_jumble_section {
             // Check if we've hit another section at same or higher level
-            if line.starts_with("# ") {
-                in_jumble_section = false;
-            } else if line.starts_with("## ") && !line.contains("Using Jumble") {
+            if line.starts_with("# ") || (line.starts_with("## ") && !line.contains("Using Jumble")) {
                 in_jumble_section = false;
             }
         }
-        
+
         if !in_jumble_section {
             result.push(line);
         }
     }
-    
+
     // Find the best place to insert the updated section
     // Try to insert before the first H1 after any existing content
-    let insert_pos = result.iter()
+    let insert_pos = result
+        .iter()
         .position(|&line| line.starts_with("# ") && !line.starts_with("# WARP"))
         .unwrap_or(result.len());
-    
+
     // Add the new jumble section
     let jumble_lines: Vec<&str> = JUMBLE_SECTION.lines().collect();
-    
+
     // Insert with proper spacing
     if insert_pos < result.len() {
         result.insert(insert_pos, "");
@@ -164,7 +159,7 @@ fn replace_jumble_section(content: &str) -> Result<String> {
         result.push("");
         result.extend(jumble_lines);
     }
-    
+
     Ok(result.join("\n"))
 }
 
@@ -237,25 +232,23 @@ pub fn setup_claude(workspace_root: &Path, global: bool) -> Result<()> {
     } else {
         workspace_root.join(".claude")
     };
-    
-    fs::create_dir_all(&config_dir)
-        .context("Failed to create .claude directory")?;
-    
+
+    fs::create_dir_all(&config_dir).context("Failed to create .claude directory")?;
+
     let guide_path = config_dir.join("jumble-usage.md");
-    fs::write(&guide_path, USAGE_GUIDE)
-        .context("Failed to write usage guide")?;
-    
+    fs::write(&guide_path, USAGE_GUIDE).context("Failed to write usage guide")?;
+
     println!("✓ Created {}", guide_path.display());
-    
+
     // Check MCP config
     let mcp_config = dirs::home_dir()
         .map(|h| h.join("Library/Application Support/Claude/claude_desktop_config.json"));
-    
+
     if let Some(config_path) = mcp_config {
         if config_path.exists() {
-            let content = fs::read_to_string(&config_path)
-                .context("Failed to read Claude config")?;
-            
+            let content =
+                fs::read_to_string(&config_path).context("Failed to read Claude config")?;
+
             if content.contains("\"jumble\"") {
                 println!("✓ Jumble MCP server detected in Claude Desktop config");
             } else {
@@ -270,7 +263,10 @@ pub fn setup_claude(workspace_root: &Path, global: bool) -> Result<()> {
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|_| "/path/to/jumble".to_string());
                 println!("         \"command\": \"{}\",", jumble_path);
-                println!("         \"args\": [\"--root\", \"{}\"]", workspace_root.display());
+                println!(
+                    "         \"args\": [\"--root\", \"{}\"]",
+                    workspace_root.display()
+                );
                 println!("       }}");
                 println!("     }}");
                 println!("   }}");
@@ -284,7 +280,7 @@ pub fn setup_claude(workspace_root: &Path, global: bool) -> Result<()> {
             println!("   Configure jumble in Claude Desktop settings.");
         }
     }
-    
+
     print_common_next_steps(workspace_root, "Claude Desktop");
     Ok(())
 }
@@ -298,25 +294,26 @@ pub fn setup_cursor(workspace_root: &Path, global: bool) -> Result<()> {
     } else {
         workspace_root.join(".cursor")
     };
-    
-    fs::create_dir_all(&config_dir)
-        .context("Failed to create .cursor directory")?;
-    
+
+    fs::create_dir_all(&config_dir).context("Failed to create .cursor directory")?;
+
     let guide_path = config_dir.join("jumble-usage.md");
-    fs::write(&guide_path, USAGE_GUIDE)
-        .context("Failed to write usage guide")?;
-    
+    fs::write(&guide_path, USAGE_GUIDE).context("Failed to write usage guide")?;
+
     println!("✓ Created {}", guide_path.display());
-    
+
     // Check/create MCP config
     let mcp_config_path = config_dir.join("mcp.json");
-    
+
     if mcp_config_path.exists() {
-        let content = fs::read_to_string(&mcp_config_path)
-            .context("Failed to read Cursor MCP config")?;
-        
+        let content =
+            fs::read_to_string(&mcp_config_path).context("Failed to read Cursor MCP config")?;
+
         if content.contains("\"jumble\"") {
-            println!("✓ Jumble already configured in {}", mcp_config_path.display());
+            println!(
+                "✓ Jumble already configured in {}",
+                mcp_config_path.display()
+            );
         } else {
             println!();
             println!("⚠️  Jumble not found in Cursor MCP config");
@@ -327,7 +324,7 @@ pub fn setup_cursor(workspace_root: &Path, global: bool) -> Result<()> {
         println!("📝 Creating Cursor MCP config...");
         print_cursor_config_instructions(&mcp_config_path, workspace_root);
     }
-    
+
     print_common_next_steps(workspace_root, "Cursor");
     Ok(())
 }
@@ -341,25 +338,22 @@ pub fn setup_windsurf(workspace_root: &Path, global: bool) -> Result<()> {
     } else {
         workspace_root.join(".windsurf")
     };
-    
-    fs::create_dir_all(&config_dir)
-        .context("Failed to create windsurf config directory")?;
-    
+
+    fs::create_dir_all(&config_dir).context("Failed to create windsurf config directory")?;
+
     let guide_path = config_dir.join("jumble-usage.md");
-    fs::write(&guide_path, USAGE_GUIDE)
-        .context("Failed to write usage guide")?;
-    
+    fs::write(&guide_path, USAGE_GUIDE).context("Failed to write usage guide")?;
+
     println!("✓ Created {}", guide_path.display());
-    
+
     // Check MCP config
-    let mcp_config_path = dirs::home_dir()
-        .map(|h| h.join(".codeium/windsurf/mcp_config.json"));
-    
+    let mcp_config_path = dirs::home_dir().map(|h| h.join(".codeium/windsurf/mcp_config.json"));
+
     if let Some(config_path) = mcp_config_path {
         if config_path.exists() {
-            let content = fs::read_to_string(&config_path)
-                .context("Failed to read Windsurf config")?;
-            
+            let content =
+                fs::read_to_string(&config_path).context("Failed to read Windsurf config")?;
+
             if content.contains("\"jumble\"") {
                 println!("✓ Jumble MCP server detected in Windsurf config");
             } else {
@@ -374,7 +368,7 @@ pub fn setup_windsurf(workspace_root: &Path, global: bool) -> Result<()> {
             print_windsurf_config_instructions(&config_path, workspace_root);
         }
     }
-    
+
     print_common_next_steps(workspace_root, "Windsurf");
     Ok(())
 }
@@ -388,25 +382,22 @@ pub fn setup_codex(workspace_root: &Path, global: bool) -> Result<()> {
     } else {
         workspace_root.join(".codex")
     };
-    
-    fs::create_dir_all(&config_dir)
-        .context("Failed to create .codex directory")?;
-    
+
+    fs::create_dir_all(&config_dir).context("Failed to create .codex directory")?;
+
     let guide_path = config_dir.join("jumble-usage.md");
-    fs::write(&guide_path, USAGE_GUIDE)
-        .context("Failed to write usage guide")?;
-    
+    fs::write(&guide_path, USAGE_GUIDE).context("Failed to write usage guide")?;
+
     println!("✓ Created {}", guide_path.display());
-    
+
     // Check MCP config
-    let config_path = dirs::home_dir()
-        .map(|h| h.join(".codex/config.toml"));
-    
+    let config_path = dirs::home_dir().map(|h| h.join(".codex/config.toml"));
+
     if let Some(config_file) = config_path {
         if config_file.exists() {
-            let content = fs::read_to_string(&config_file)
-                .context("Failed to read Codex config")?;
-            
+            let content =
+                fs::read_to_string(&config_file).context("Failed to read Codex config")?;
+
             if content.contains("[mcp_servers.jumble]") {
                 println!("✓ Jumble MCP server detected in Codex config");
             } else {
@@ -421,7 +412,7 @@ pub fn setup_codex(workspace_root: &Path, global: bool) -> Result<()> {
             print_codex_config_instructions(&config_file, workspace_root);
         }
     }
-    
+
     print_common_next_steps(workspace_root, "Codex");
     Ok(())
 }
@@ -436,7 +427,10 @@ fn print_cursor_config_instructions(config_path: &Path, workspace_root: &Path) {
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "/path/to/jumble".to_string());
     println!("         \"command\": \"{}\",", jumble_path);
-    println!("         \"args\": [\"--root\", \"{}\"]", workspace_root.display());
+    println!(
+        "         \"args\": [\"--root\", \"{}\"]",
+        workspace_root.display()
+    );
     println!("       }}");
     println!("     }}");
     println!("   }}");
@@ -452,7 +446,10 @@ fn print_windsurf_config_instructions(config_path: &Path, workspace_root: &Path)
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "/path/to/jumble".to_string());
     println!("         \"command\": \"{}\",", jumble_path);
-    println!("         \"args\": [\"--root\", \"{}\"]", workspace_root.display());
+    println!(
+        "         \"args\": [\"--root\", \"{}\"]",
+        workspace_root.display()
+    );
     println!("       }}");
     println!("     }}");
     println!("   }}");
@@ -471,7 +468,11 @@ fn print_codex_config_instructions(config_path: &Path, workspace_root: &Path) {
     println!("   args = [\"--root\", \"{}\"]", workspace_root.display());
     println!();
     println!("   Or use the CLI:");
-    println!("   codex mcp add jumble -- {} --root {}", jumble_path, workspace_root.display());
+    println!(
+        "   codex mcp add jumble -- {} --root {}",
+        jumble_path,
+        workspace_root.display()
+    );
     println!();
     println!("   Then restart Codex.");
 }
@@ -484,11 +485,14 @@ fn print_common_next_steps(workspace_root: &Path, agent_name: &str) {
         println!("   Create .jumble/project.toml to provide project context");
         println!("   See: https://github.com/velvet-tiger/jumble/blob/main/AUTHORING.md");
     }
-    
+
     println!();
     println!("Next steps:");
     println!("1. Ensure .jumble/project.toml exists");
-    println!("2. Verify jumble MCP server is configured in {}", agent_name);
+    println!(
+        "2. Verify jumble MCP server is configured in {}",
+        agent_name
+    );
     println!("3. Restart {} to apply changes", agent_name);
     println!("4. Read the usage guide for best practices");
 }
@@ -498,61 +502,65 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
-    
+
     #[test]
     fn test_setup_warp_creates_new_file() {
         let temp = TempDir::new().unwrap();
         let workspace = temp.path();
-        
+
         setup_warp(workspace, false).unwrap();
-        
+
         let warp_md = workspace.join("WARP.md");
         assert!(warp_md.exists());
-        
+
         let content = fs::read_to_string(warp_md).unwrap();
         assert!(content.contains("## Using Jumble for Project Context"));
         assert!(content.contains("get_workspace_overview()"));
     }
-    
+
     #[test]
     fn test_setup_warp_appends_to_existing() {
         let temp = TempDir::new().unwrap();
         let workspace = temp.path();
         let warp_md = workspace.join("WARP.md");
-        
+
         // Create existing WARP.md
-        fs::write(&warp_md, "# WARP.md\n\n## Existing Section\n\nSome content.\n").unwrap();
-        
+        fs::write(
+            &warp_md,
+            "# WARP.md\n\n## Existing Section\n\nSome content.\n",
+        )
+        .unwrap();
+
         setup_warp(workspace, false).unwrap();
-        
+
         let content = fs::read_to_string(warp_md).unwrap();
         assert!(content.contains("## Existing Section"));
         assert!(content.contains("## Using Jumble for Project Context"));
     }
-    
+
     #[test]
     fn test_setup_warp_skips_if_exists() {
         let temp = TempDir::new().unwrap();
         let workspace = temp.path();
         let warp_md = workspace.join("WARP.md");
-        
+
         // Create WARP.md with jumble section
         fs::write(&warp_md, format!("# WARP.md\n\n{}", JUMBLE_SECTION)).unwrap();
-        
+
         // Should skip without --force
         setup_warp(workspace, false).unwrap();
-        
+
         let content = fs::read_to_string(warp_md).unwrap();
         // Should only have one occurrence
         assert_eq!(content.matches(JUMBLE_SECTION_MARKER).count(), 1);
     }
-    
+
     #[test]
     fn test_setup_warp_force_replaces() {
         let temp = TempDir::new().unwrap();
         let workspace = temp.path();
         let warp_md = workspace.join("WARP.md");
-        
+
         // Create WARP.md with old jumble section
         let old_content = r#"# WARP.md
 
@@ -565,16 +573,16 @@ This is old content that should be replaced.
 Keep this.
 "#;
         fs::write(&warp_md, old_content).unwrap();
-        
+
         // Force update
         setup_warp(workspace, true).unwrap();
-        
+
         let content = fs::read_to_string(warp_md).unwrap();
         assert!(content.contains("get_workspace_overview()"));
         assert!(!content.contains("This is old content"));
         assert!(content.contains("## Other Section"));
     }
-    
+
     #[test]
     fn test_replace_jumble_section() {
         let content = r#"# WARP.md
@@ -589,9 +597,9 @@ More old content.
 
 Keep this section.
 "#;
-        
+
         let result = replace_jumble_section(content).unwrap();
-        
+
         assert!(result.contains("get_workspace_overview()"));
         assert!(!result.contains("Old content here"));
         assert!(result.contains("## Another Section"));

@@ -7,14 +7,8 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::config::{
-    JumbleConfig,
-    ProjectConfig,
-    ProjectConventions,
-    ProjectDocs,
-    ProjectSkills,
-    SkillFrontmatter,
-    SkillInfo,
-    WorkspaceConfig,
+    JumbleConfig, ProjectConfig, ProjectConventions, ProjectDocs, ProjectSkills, SkillFrontmatter,
+    SkillInfo, WorkspaceConfig,
 };
 use crate::memory;
 use crate::protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
@@ -237,8 +231,8 @@ impl Server {
     fn load_project(&self, path: &Path) -> Result<ProjectConfig> {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
-        let config: ProjectConfig =
-            toml::from_str(&content).with_context(|| format!("Failed to parse {}", path.display()))?;
+        let config: ProjectConfig = toml::from_str(&content)
+            .with_context(|| format!("Failed to parse {}", path.display()))?;
         Ok(config)
     }
 
@@ -488,24 +482,20 @@ fn discover_structured_skills_in_dir(root: &Path, skills: &mut ProjectSkills) {
 /// Everything between the first and second such markers is treated as YAML.
 /// The preview is taken from the body that follows the frontmatter (or from the
 /// top of the file when no frontmatter is present).
-fn extract_skill_frontmatter_and_preview(
-    content: &str,
-) -> (Option<SkillFrontmatter>, String) {
+fn extract_skill_frontmatter_and_preview(content: &str) -> (Option<SkillFrontmatter>, String) {
     const PREVIEW_MAX_LINES: usize = 16;
 
     // Helper to build a preview from a body slice.
     fn build_preview(body: &str) -> String {
-        body
-            .lines()
+        body.lines()
             .take(PREVIEW_MAX_LINES)
             .collect::<Vec<_>>()
             .join("\n")
     }
 
     // Detect YAML frontmatter only if the file starts with `---` on the first line.
-    if content.starts_with("---\n") {
+    if let Some(rest) = content.strip_prefix("---\n") {
         // Skip the initial `---\n`.
-        let rest = &content[4..];
         if let Some(end_idx) = rest.find("\n---\n") {
             let frontmatter_str = &rest[..end_idx];
             let body_start = end_idx + "\n---\n".len();
@@ -576,7 +566,8 @@ mod tests {
         std::fs::create_dir_all(&skill_dir).unwrap();
 
         let skill_path = skill_dir.join("SKILL.md");
-        let content = "---\nname: explaining-code\ndescription: Explains code with diagrams\n---\nBody";
+        let content =
+            "---\nname: explaining-code\ndescription: Explains code with diagrams\n---\nBody";
         std::fs::write(&skill_path, content).unwrap();
 
         let mut skills = ProjectSkills::default();
@@ -595,7 +586,10 @@ mod tests {
             .as_ref()
             .expect("expected parsed frontmatter");
         assert_eq!(fm.name.as_deref(), Some("explaining-code"));
-        assert_eq!(fm.description.as_deref(), Some("Explains code with diagrams"));
+        assert_eq!(
+            fm.description.as_deref(),
+            Some("Explains code with diagrams")
+        );
     }
 
     #[test]

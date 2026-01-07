@@ -116,7 +116,7 @@ mod tests {
     fn test_format_commands() {
         let mut commands = HashMap::new();
         commands.insert("build".to_string(), "cargo build".to_string());
-        
+
         let result = format_commands(&commands);
         assert!(result.contains("**build**"));
         assert!(result.contains("`cargo build`"));
@@ -125,14 +125,17 @@ mod tests {
     #[test]
     fn test_format_entry_points_empty() {
         let entry_points = HashMap::new();
-        assert_eq!(format_entry_points(&entry_points), "No entry points defined.");
+        assert_eq!(
+            format_entry_points(&entry_points),
+            "No entry points defined."
+        );
     }
 
     #[test]
     fn test_format_entry_points() {
         let mut entry_points = HashMap::new();
         entry_points.insert("main".to_string(), "src/main.rs".to_string());
-        
+
         let result = format_entry_points(&entry_points);
         assert!(result.contains("**main**"));
         assert!(result.contains("src/main.rs"));
@@ -150,7 +153,7 @@ mod tests {
             internal: vec!["shared-lib".to_string()],
             external: vec![],
         };
-        
+
         let result = format_dependencies(&deps);
         assert!(result.contains("Internal dependencies"));
         assert!(result.contains("shared-lib"));
@@ -163,7 +166,7 @@ mod tests {
             internal: vec!["core".to_string()],
             external: vec!["serde".to_string(), "tokio".to_string()],
         };
-        
+
         let result = format_dependencies(&deps);
         assert!(result.contains("Internal dependencies"));
         assert!(result.contains("External dependencies"));
@@ -173,7 +176,10 @@ mod tests {
     #[test]
     fn test_format_related_projects_empty() {
         let related = RelatedProjects::default();
-        assert_eq!(format_related_projects(&related), "No related projects defined.");
+        assert_eq!(
+            format_related_projects(&related),
+            "No related projects defined."
+        );
     }
 
     #[test]
@@ -182,7 +188,7 @@ mod tests {
             upstream: vec!["core-lib".to_string()],
             downstream: vec!["frontend".to_string()],
         };
-        
+
         let result = format_related_projects(&related);
         assert!(result.contains("Upstream"));
         assert!(result.contains("core-lib"));
@@ -202,7 +208,7 @@ mod tests {
             base_url: Some("/api/v1".to_string()),
             endpoints: vec!["GET /users".to_string()],
         });
-        
+
         let result = format_api(&api);
         assert!(result.contains("OpenAPI spec"));
         assert!(result.contains("api.yaml"));
@@ -218,7 +224,7 @@ mod tests {
             base_url: None,
             endpoints: vec![],
         });
-        
+
         assert_eq!(format_api(&api), "API section defined but empty.");
     }
 
@@ -229,7 +235,7 @@ mod tests {
             summary: "Authentication module".to_string(),
         };
         let path = Path::new("/project");
-        
+
         let result = format_concept(path, "authentication", &concept);
         assert!(result.contains("## authentication"));
         assert!(result.contains("Authentication module"));

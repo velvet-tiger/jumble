@@ -21,7 +21,7 @@ use server::Server;
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,
-    
+
     /// Root directory to scan for .jumble/project.toml files (server mode only)
     #[arg(long, env = "JUMBLE_ROOT", global = true)]
     root: Option<PathBuf>,
@@ -31,7 +31,7 @@ struct Args {
 enum Commands {
     /// Run the MCP server (default if no subcommand specified)
     Server,
-    
+
     /// Setup AI agent integrations
     Setup {
         #[command(subcommand)]
@@ -47,28 +47,28 @@ enum SetupCommands {
         #[arg(short, long)]
         force: bool,
     },
-    
+
     /// Setup Claude Desktop integration
     Claude {
         /// Use global config (~/.claude) instead of project .claude directory
         #[arg(short, long)]
         global: bool,
     },
-    
+
     /// Setup Cursor integration
     Cursor {
         /// Use global config (~/.cursor) instead of project .cursor directory
         #[arg(short, long)]
         global: bool,
     },
-    
+
     /// Setup Windsurf integration
     Windsurf {
         /// Use global config (~/.codeium/windsurf) instead of project .windsurf directory
         #[arg(short, long)]
         global: bool,
     },
-    
+
     /// Setup Codex integration
     Codex {
         /// Use global config (~/.codex) instead of project .codex directory
@@ -79,36 +79,24 @@ enum SetupCommands {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     let root = args
         .root
         .or_else(|| env::var("JUMBLE_ROOT").ok().map(PathBuf::from))
         .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    
+
     match args.command {
         Some(Commands::Server) | None => {
             // Run MCP server (default mode)
             run_server(root)
         }
-        Some(Commands::Setup { agent }) => {
-            match agent {
-                SetupCommands::Warp { force } => {
-                    setup::setup_warp(&root, force)
-                }
-                SetupCommands::Claude { global } => {
-                    setup::setup_claude(&root, global)
-                }
-                SetupCommands::Cursor { global } => {
-                    setup::setup_cursor(&root, global)
-                }
-                SetupCommands::Windsurf { global } => {
-                    setup::setup_windsurf(&root, global)
-                }
-                SetupCommands::Codex { global } => {
-                    setup::setup_codex(&root, global)
-                }
-            }
-        }
+        Some(Commands::Setup { agent }) => match agent {
+            SetupCommands::Warp { force } => setup::setup_warp(&root, force),
+            SetupCommands::Claude { global } => setup::setup_claude(&root, global),
+            SetupCommands::Cursor { global } => setup::setup_cursor(&root, global),
+            SetupCommands::Windsurf { global } => setup::setup_windsurf(&root, global),
+            SetupCommands::Codex { global } => setup::setup_codex(&root, global),
+        },
     }
 }
 

@@ -2,8 +2,8 @@
 name = "jumble"
 description = "MCP server providing queryable, on-demand project context to LLMs"
 language = "rust"
-version = "0.5.0"
-repository = "https://github.com/xtfer/jumble"
+version = "1.0.0"
+repository = "https://github.com/velvet-tiger/jumble"
 
 [commands]
 build = "cargo build --release"

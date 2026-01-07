@@ -233,12 +233,18 @@ mod tests {
         let config: ProjectConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.project.name, "my-app");
         assert_eq!(config.project.language, Some("rust".to_string()));
-        assert_eq!(config.commands.get("build"), Some(&"cargo build".to_string()));
-        assert_eq!(config.entry_points.get("main"), Some(&"src/main.rs".to_string()));
+        assert_eq!(
+            config.commands.get("build"),
+            Some(&"cargo build".to_string())
+        );
+        assert_eq!(
+            config.entry_points.get("main"),
+            Some(&"src/main.rs".to_string())
+        );
         assert_eq!(config.dependencies.internal, vec!["shared-lib"]);
         assert_eq!(config.dependencies.external, vec!["serde", "tokio"]);
         assert_eq!(config.related_projects.upstream, vec!["core-lib"]);
-        
+
         let api = config.api.unwrap();
         assert_eq!(api.openapi, Some("docs/openapi.yaml".to_string()));
         assert_eq!(api.endpoints.len(), 2);
@@ -281,8 +287,14 @@ mod tests {
         "#;
 
         let conventions: ProjectConventions = toml::from_str(toml_str).unwrap();
-        assert_eq!(conventions.conventions.get("naming"), Some(&"Use snake_case for functions".to_string()));
-        assert_eq!(conventions.gotchas.get("null_check"), Some(&"Always check for None".to_string()));
+        assert_eq!(
+            conventions.conventions.get("naming"),
+            Some(&"Use snake_case for functions".to_string())
+        );
+        assert_eq!(
+            conventions.gotchas.get("null_check"),
+            Some(&"Always check for None".to_string())
+        );
     }
 
     #[test]
@@ -299,7 +311,7 @@ mod tests {
 
         let docs: ProjectDocs = toml::from_str(toml_str).unwrap();
         assert_eq!(docs.docs.len(), 2);
-        
+
         let arch_doc = docs.docs.get("architecture").unwrap();
         assert_eq!(arch_doc.path, "docs/architecture.md");
         assert_eq!(arch_doc.summary, "System architecture overview");
