@@ -16,6 +16,7 @@ use crate::config::{
     SkillInfo,
     WorkspaceConfig,
 };
+use crate::memory;
 use crate::protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::tools::{self, ProjectData};
 
@@ -80,9 +81,23 @@ impl Server {
                     let conventions = self.load_conventions(path.parent().unwrap());
                     let docs = self.load_docs(path.parent().unwrap());
 
+                    // Load or create memory database
+                    let memory_db = match memory::open_or_create_memory_db(&project_dir) {
+                        Ok(db) => db,
+                        Err(e) => {
+                            eprintln!(
+                                "jumble: warning: failed to load memory for project '{}': {}",
+                                config.project.name, e
+                            );
+                            // Create an in-memory database as fallback
+                            memory::open_or_create_memory_db(&project_dir)
+                                .unwrap_or_else(|_| panic!("Failed to create fallback memory db"))
+                        }
+                    };
+
                     projects.insert(
                         config.project.name.clone(),
-                        (project_dir, config, skills, conventions, docs),
+                        (project_dir, config, skills, conventions, docs, memory_db),
                     );
                 }
             }
@@ -296,6 +311,12 @@ impl Server {
                 tools::get_workspace_conventions(&self.workspace, &arguments)
             }
             "get_jumble_authoring_prompt" => tools::get_jumble_authoring_prompt(),
+            "store_memory" => tools::store_memory(&self.projects, &arguments),
+            "get_memory" => tools::get_memory(&self.projects, &arguments),
+            "list_memories" => tools::list_memories(&self.projects, &arguments),
+            "search_memories" => tools::search_memories(&self.projects, &arguments),
+            "delete_memory" => tools::delete_memory(&self.projects, &arguments),
+            "clear_memories" => tools::clear_memories(&self.projects, &arguments),
             _ => Err(format!("Unknown tool: {}", name)),
         };
 

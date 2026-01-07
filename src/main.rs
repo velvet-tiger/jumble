@@ -1,5 +1,6 @@
 mod config;
 mod format;
+mod memory;
 mod protocol;
 mod server;
 mod tools;

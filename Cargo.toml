@@ -16,3 +16,8 @@ toml = "0.9"
 walkdir = "2"
 anyhow = "1"
 serde_yaml = "0.9"
+rustbreak = { version = "2", features = ["ron_enc"] }
+chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

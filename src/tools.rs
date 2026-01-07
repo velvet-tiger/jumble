@@ -7,6 +7,7 @@ use crate::format::{
     format_api, format_commands, format_concept, format_dependencies, format_entry_points,
     format_related_projects,
 };
+use crate::memory::MemoryDatabase;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -18,6 +19,7 @@ pub type ProjectData = (
     ProjectSkills,
     ProjectConventions,
     ProjectDocs,
+    MemoryDatabase,
 );
 
 /// Returns the JSON schema for all available tools
@@ -200,6 +202,126 @@ pub fn tools_list() -> Value {
                 }
             },
             {
+                "name": "store_memory",
+                "description": "Stores a memory entry (key-value pair) for a project. AI agents can use this to persist learned information, preferences, or context over time.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "The project name"
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "The memory key (identifier)"
+                        },
+                        "value": {
+                            "type": "string",
+                            "description": "The memory value to store"
+                        },
+                        "source": {
+                            "type": "string",
+                            "description": "Optional: identifier for the agent/tool storing this memory"
+                        }
+                    },
+                    "required": ["project", "key", "value"]
+                }
+            },
+            {
+                "name": "get_memory",
+                "description": "Retrieves a specific memory entry by key for a project.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "The project name"
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "The memory key to retrieve"
+                        }
+                    },
+                    "required": ["project", "key"]
+                }
+            },
+            {
+                "name": "list_memories",
+                "description": "Lists all stored memories for a project, optionally filtered by a key pattern.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "The project name"
+                        },
+                        "pattern": {
+                            "type": "string",
+                            "description": "Optional: filter keys by this substring (case-insensitive)"
+                        }
+                    },
+                    "required": ["project"]
+                }
+            },
+            {
+                "name": "search_memories",
+                "description": "Searches memory keys and values for a query string (case-insensitive substring match).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "The project name"
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "Search query to match against keys and values"
+                        }
+                    },
+                    "required": ["project", "query"]
+                }
+            },
+            {
+                "name": "delete_memory",
+                "description": "Deletes a specific memory entry by key for a project.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "The project name"
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "The memory key to delete"
+                        }
+                    },
+                    "required": ["project", "key"]
+                }
+            },
+            {
+                "name": "clear_memories",
+                "description": "Clears all memories for a project, optionally filtered by pattern or age. Use with caution!",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "The project name"
+                        },
+                        "pattern": {
+                            "type": "string",
+                            "description": "Optional: only delete memories with keys matching this pattern (case-insensitive)"
+                        },
+                        "confirm": {
+                            "type": "boolean",
+                            "description": "Must be set to true to confirm deletion"
+                        }
+                    },
+                    "required": ["project", "confirm"]
+                }
+            },
+            {
                 "name": "reload_workspace",
                 "description": "Reloads workspace and project metadata from disk. Use this after editing .jumble files to pick up changes without restarting the server.",
                 "inputSchema": {
@@ -292,7 +414,7 @@ pub fn list_projects(projects: &HashMap<String, ProjectData>) -> Result<String, 
     }
 
     let mut output = String::new();
-    for (name, (path, config, _skills, _conventions, _docs)) in projects {
+    for (name, (path, config, _skills, _conventions, _docs, _memory)) in projects {
         let lang = config.project.language.as_deref().unwrap_or("unknown");
         output.push_str(&format!(
             "- **{}** ({}): {}\n  Path: {}\n",
@@ -314,7 +436,7 @@ pub fn get_project_info(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'project' argument")?;
 
-    let (path, config, _skills, _conventions, _docs) = projects
+    let (path, config, _skills, _conventions, _docs, _memory) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -367,7 +489,7 @@ pub fn get_commands(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'project' argument")?;
 
-    let (_, config, _, _, _) = projects
+    let (_, config, _, _, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -402,7 +524,7 @@ pub fn get_architecture(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'concept' argument")?;
 
-    let (path, config, _, _, _) = projects
+    let (path, config, _, _, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -451,7 +573,7 @@ pub fn get_related_files(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'query' argument")?;
 
-    let (path, config, _, _, _) = projects
+    let (path, config, _, _, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -491,7 +613,7 @@ pub fn list_skills(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'project' argument")?;
 
-    let (_, _, skills, _, _) = projects
+    let (_, _, skills, _, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -553,7 +675,7 @@ pub fn get_skill(
         .and_then(|v| v.as_str())
         .ok_or("Missing 'topic' argument")?;
 
-    let (_, _, skills, _, _) = projects
+    let (_, _, skills, _, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -676,7 +798,7 @@ pub fn get_conventions(
 
     let category = args.get("category").and_then(|v| v.as_str());
 
-    let (_, _, _, conventions, _) = projects
+    let (_, _, _, conventions, _, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -744,7 +866,7 @@ pub fn get_docs(projects: &HashMap<String, ProjectData>, args: &Value) -> Result
 
     let topic = args.get("topic").and_then(|v| v.as_str());
 
-    let (path, _, _, _, docs) = projects
+    let (path, _, _, _, docs, _) = projects
         .get(project_name)
         .ok_or_else(|| format!("Project '{}' not found", project_name))?;
 
@@ -822,7 +944,7 @@ pub fn get_workspace_overview(
     project_names.sort();
 
     for name in &project_names {
-        let (_, config, _, _, _) = projects.get(*name).unwrap();
+        let (_, config, _, _, _, _) = projects.get(*name).unwrap();
         let lang = config.project.language.as_deref().unwrap_or("unknown");
         output.push_str(&format!(
             "- **{}** ({}): {}\n",
@@ -835,7 +957,7 @@ pub fn get_workspace_overview(
     let mut has_deps = false;
 
     for name in &project_names {
-        let (_, config, _, _, _) = projects.get(*name).unwrap();
+        let (_, config, _, _, _, _) = projects.get(*name).unwrap();
         let upstream = &config.related_projects.upstream;
         let downstream = &config.related_projects.downstream;
 
@@ -927,11 +1049,343 @@ pub fn get_workspace_conventions(
     Ok(output)
 }
 
+// ============================================================================
+// Memory Tool Implementations
+// ============================================================================
+
+pub fn store_memory(
+    projects: &HashMap<String, ProjectData>,
+    args: &Value,
+) -> Result<String, String> {
+    let project_name = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'project' argument")?;
+
+    let key = args
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'key' argument")?;
+
+    let value = args
+        .get("value")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'value' argument")?;
+
+    let source = args.get("source").and_then(|v| v.as_str());
+
+    let (_, _, _, _, _, memory_db) = projects
+        .get(project_name)
+        .ok_or_else(|| format!("Project '{}' not found", project_name))?;
+
+    // Create memory entry
+    let entry = crate::memory::MemoryEntry {
+        value: value.to_string(),
+        timestamp: crate::memory::current_timestamp(),
+        source: source.map(|s| s.to_string()),
+    };
+
+    // Store in database
+    memory_db
+        .write(|db| {
+            db.insert(key.to_string(), entry);
+        })
+        .map_err(|e| format!("Failed to write to memory database: {}", e))?;
+
+    memory_db
+        .save()
+        .map_err(|e| format!("Failed to save memory database: {}", e))?;
+
+    Ok(format!("Memory stored: key='{}' for project '{}'", key, project_name))
+}
+
+pub fn get_memory(
+    projects: &HashMap<String, ProjectData>,
+    args: &Value,
+) -> Result<String, String> {
+    let project_name = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'project' argument")?;
+
+    let key = args
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'key' argument")?;
+
+    let (_, _, _, _, _, memory_db) = projects
+        .get(project_name)
+        .ok_or_else(|| format!("Project '{}' not found", project_name))?;
+
+    // Read from database
+    let result = memory_db
+        .read(|db| {
+            db.get(key)
+                .map(|entry| {
+                    let mut output = format!("# Memory: {}\n\n", key);
+                    output.push_str(&format!("**Value:** {}\n", entry.value));
+                    output.push_str(&format!("**Timestamp:** {}\n", entry.timestamp));
+                    if let Some(src) = &entry.source {
+                        output.push_str(&format!("**Source:** {}\n", src));
+                    }
+                    output
+                })
+                .ok_or_else(|| format!("Memory key '{}' not found", key))
+        })
+        .map_err(|e| format!("Failed to read from memory database: {}", e))?;
+
+    result
+}
+
+pub fn list_memories(
+    projects: &HashMap<String, ProjectData>,
+    args: &Value,
+) -> Result<String, String> {
+    let project_name = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'project' argument")?;
+
+    let pattern = args.get("pattern").and_then(|v| v.as_str());
+
+    let (_, _, _, _, _, memory_db) = projects
+        .get(project_name)
+        .ok_or_else(|| format!("Project '{}' not found", project_name))?;
+
+    // Read from database
+    let result = memory_db
+        .read(|db| {
+            if db.is_empty() {
+                return Ok(format!("No memories stored for project '{}'", project_name));
+            }
+
+            let mut keys: Vec<&String> = db.keys().collect();
+            keys.sort();
+
+            // Filter by pattern if provided
+            let filtered_keys: Vec<&String> = if let Some(pat) = pattern {
+                let pat_lower = pat.to_lowercase();
+                keys.into_iter()
+                    .filter(|k| k.to_lowercase().contains(&pat_lower))
+                    .collect()
+            } else {
+                keys
+            };
+
+            if filtered_keys.is_empty() {
+                return Ok(format!(
+                    "No memories matching pattern '{}' for project '{}'",
+                    pattern.unwrap_or(""),
+                    project_name
+                ));
+            }
+
+            let mut output = format!("# Memories for '{}'\n\n", project_name);
+            if let Some(pat) = pattern {
+                output.push_str(&format!("Filtered by: {}\n\n", pat));
+            }
+
+            for key in filtered_keys {
+                if let Some(entry) = db.get(key) {
+                    output.push_str(&format!("- **{}**\n", key));
+                    output.push_str(&format!("  Timestamp: {}\n", entry.timestamp));
+                    if let Some(src) = &entry.source {
+                        output.push_str(&format!("  Source: {}\n", src));
+                    }
+                    // Preview first 100 chars of value
+                    let preview = if entry.value.len() > 100 {
+                        format!("{}...", &entry.value[..100])
+                    } else {
+                        entry.value.clone()
+                    };
+                    output.push_str(&format!("  Preview: {}\n", preview));
+                }
+            }
+
+            Ok(output)
+        })
+        .map_err(|e| format!("Failed to read from memory database: {}", e))?;
+
+    result
+}
+
+pub fn search_memories(
+    projects: &HashMap<String, ProjectData>,
+    args: &Value,
+) -> Result<String, String> {
+    let project_name = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'project' argument")?;
+
+    let query = args
+        .get("query")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'query' argument")?;
+
+    let (_, _, _, _, _, memory_db) = projects
+        .get(project_name)
+        .ok_or_else(|| format!("Project '{}' not found", project_name))?;
+
+    // Read from database
+    let result = memory_db
+        .read(|db| {
+            if db.is_empty() {
+                return Ok(format!("No memories stored for project '{}'", project_name));
+            }
+
+            let query_lower = query.to_lowercase();
+            let mut matches: Vec<(&String, &crate::memory::MemoryEntry)> = db
+                .iter()
+                .filter(|(k, v)| {
+                    k.to_lowercase().contains(&query_lower)
+                        || v.value.to_lowercase().contains(&query_lower)
+                })
+                .collect();
+
+            if matches.is_empty() {
+                return Ok(format!(
+                    "No memories matching query '{}' for project '{}'",
+                    query, project_name
+                ));
+            }
+
+            // Sort by key for consistent output
+            matches.sort_by_key(|(k, _)| *k);
+
+            let mut output = format!("# Search results for '{}' in '{}'\n\n", query, project_name);
+            output.push_str(&format!("Found {} match(es)\n\n", matches.len()));
+
+            for (key, entry) in matches {
+                output.push_str(&format!("## {}\n", key));
+                output.push_str(&format!("**Value:** {}\n", entry.value));
+                output.push_str(&format!("**Timestamp:** {}\n", entry.timestamp));
+                if let Some(src) = &entry.source {
+                    output.push_str(&format!("**Source:** {}\n", src));
+                }
+                output.push('\n');
+            }
+
+            Ok(output)
+        })
+        .map_err(|e| format!("Failed to read from memory database: {}", e))?;
+
+    result
+}
+
+pub fn delete_memory(
+    projects: &HashMap<String, ProjectData>,
+    args: &Value,
+) -> Result<String, String> {
+    let project_name = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'project' argument")?;
+
+    let key = args
+        .get("key")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'key' argument")?;
+
+    let (_, _, _, _, _, memory_db) = projects
+        .get(project_name)
+        .ok_or_else(|| format!("Project '{}' not found", project_name))?;
+
+    // Delete from database
+    let deleted = memory_db
+        .write(|db| {
+            db.remove(key).is_some()
+        })
+        .map_err(|e| format!("Failed to write to memory database: {}", e))?;
+
+    if !deleted {
+        return Err(format!("Memory key '{}' not found", key));
+    }
+
+    memory_db
+        .save()
+        .map_err(|e| format!("Failed to save memory database: {}", e))?;
+
+    Ok(format!("Memory deleted: key='{}' for project '{}'", key, project_name))
+}
+
+pub fn clear_memories(
+    projects: &HashMap<String, ProjectData>,
+    args: &Value,
+) -> Result<String, String> {
+    let project_name = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing 'project' argument")?;
+
+    let confirm = args
+        .get("confirm")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if !confirm {
+        return Err("Deletion not confirmed. Set 'confirm' to true to proceed.".to_string());
+    }
+
+    let pattern = args.get("pattern").and_then(|v| v.as_str());
+
+    let (_, _, _, _, _, memory_db) = projects
+        .get(project_name)
+        .ok_or_else(|| format!("Project '{}' not found", project_name))?;
+
+    // Delete from database
+    let deleted_count = memory_db
+        .write(|db| {
+            if let Some(pat) = pattern {
+                let pat_lower = pat.to_lowercase();
+                let keys_to_delete: Vec<String> = db
+                    .keys()
+                    .filter(|k| k.to_lowercase().contains(&pat_lower))
+                    .cloned()
+                    .collect();
+                
+                let count = keys_to_delete.len();
+                for key in keys_to_delete {
+                    db.remove(&key);
+                }
+                count
+            } else {
+                let count = db.len();
+                db.clear();
+                count
+            }
+        })
+        .map_err(|e| format!("Failed to write to memory database: {}", e))?;
+
+    memory_db
+        .save()
+        .map_err(|e| format!("Failed to save memory database: {}", e))?;
+
+    if let Some(pat) = pattern {
+        Ok(format!(
+            "Cleared {} memor{} matching pattern '{}' for project '{}'",
+            deleted_count,
+            if deleted_count == 1 { "y" } else { "ies" },
+            pat,
+            project_name
+        ))
+    } else {
+        Ok(format!(
+            "Cleared all {} memor{} for project '{}'",
+            deleted_count,
+            if deleted_count == 1 { "y" } else { "ies" },
+            project_name
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::*;
+    use crate::memory;
     use std::path::PathBuf;
+    use tempfile::TempDir;
 
     fn create_test_project() -> (String, ProjectData) {
         let config = ProjectConfig {
@@ -1002,9 +1456,14 @@ mod tests {
             },
         };
 
+        // Create a temporary memory database for testing
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().to_path_buf();
+        let memory_db = memory::open_or_create_memory_db(&test_path).unwrap();
+
         (
             "test-project".to_string(),
-            (PathBuf::from("/test"), config, skills, conventions, docs),
+            (test_path.clone(), config, skills, conventions, docs, memory_db),
         )
     }
 
