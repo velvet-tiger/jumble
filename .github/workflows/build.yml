@@ -7,6 +7,9 @@ on:
       - '**'      # Match all tags, e.g. 1.0.0, release-1, beta, etc.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   PKG_CONFIG_ALLOW_CROSS: 1
@@ -15,6 +18,8 @@ jobs:
   build-binaries:
     name: Build and package binaries
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
